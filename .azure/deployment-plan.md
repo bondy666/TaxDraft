@@ -112,3 +112,5 @@ Bicep validation does not apply to this code-only update. No infrastructure was 
   `index-XO4uaHso.js`.
 - 2026-11-22: Redeployed so similar payers are offered across formats and old-total files. Verified
   live bundle `index-BeaWUn77.js`.
+- 2026-11-22: Redeployed with similar-cost decisions in the expense breakdown. Verified live bundle
+  `index-CzJH339E.js`.
