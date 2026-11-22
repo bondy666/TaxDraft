@@ -377,7 +377,7 @@ function PropertyExpenseReview({ item, expense, duplicateOf, onChange, onDelete,
     }
   }
   return (
-    <tr className={`property-expense ${expense.treatment === 'runningCost' ? '' : 'needs-review'}${duplicateOf ? ' possible-duplicate' : ''}`}>
+    <tr className={`property-expense ${expense.treatment === 'runningCost' ? '' : 'needs-review'}${duplicateOf ? ' possible-duplicate' : ''}${expense.amount === 0 ? ' zero-amount' : ''}`}>
       <td>{expense.date || <em>No date</em>}</td>
       <td>
         <strong>{expense.description}</strong>
@@ -386,6 +386,9 @@ function PropertyExpenseReview({ item, expense, duplicateOf, onChange, onDelete,
           <small className="duplicate-note">
             Possible duplicate of “{duplicateOf.description}” ({duplicateOf.date || 'no date'}, {duplicateOf.source}). Delete one if they are the same cost.
           </small>
+        )}
+        {expense.amount === 0 && (
+          <small className="duplicate-note">No amount was recorded. Check the original document, or delete the row if it isn’t a cost.</small>
         )}
         <details><summary>Why / what to check</summary><p className="hint">{expense.reason}</p></details>
       </td>

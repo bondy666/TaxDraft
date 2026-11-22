@@ -4,6 +4,7 @@ import type { DocumentSuggestion } from './documentImport'
 import type { CharityCandidate, SourcedBankTransaction } from './bankTransactions'
 import { evidencedPropertyExpenses } from './propertyExpenses.ts'
 import { emptyBusiness } from './business.ts'
+import { unexpectedZeroAmounts } from './zeroAmounts.ts'
 
 export interface DocumentExportSnapshot {
   taxYearId: string
@@ -84,7 +85,7 @@ export function createTaxWorkbook(
     { item: 'Review status', value: 'Unallocated property entries and unconfirmed other-income or relief candidates are excluded until reconciled. Check recorded versus included/claimed amounts.' },
     { item: 'Property expenses', value: 'Itemised property deductions use included running-cost evidence only. Unexplained balances and bank/mortgage references are not running-expense deductions.' },
     { item: 'Long text', value: 'Text over 32,000 characters is split into continued columns without truncation. Join those columns to reconstruct the original.' },
-    { item: 'Zero amounts', value: 'Rows where every amount is zero are left out. Other income awaiting review and the pension and Gift Aid totals are always included.' },
+    { item: 'Zero amounts', value: 'Rows where every amount is zero are left out. Zeros that look like a mistake are listed in “Zero amounts to check”. Other income awaiting review and the pension and Gift Aid totals are always included.' },
     { item: 'Documents', value: doc ? doc.progress || 'Files selected; analysis may be incomplete.' : 'No current document analysis. Reselect files in Documents to export pending suggestions and likely-charity selections.' },
     { item: 'Privacy', value: 'This workbook contains personal financial information. Store and share it securely. It is a working paper, not an HMRC submission.' },
   ], ['item', 'value'])
@@ -152,6 +153,9 @@ export function createTaxWorkbook(
   ], ['income', 'band', 'amount', 'rate', 'tax'])
   add('Tax year rates', Object.entries(flatten({ ...rates })).map(([field, value]) => ({ item: label(field), value })), ['item', 'value'])
   add('Checks', flags.map((flag) => ({ ...flag })), ['severity', 'title', 'detail', 'id'])
+  add('Zero amounts to check', unexpectedZeroAmounts(data).map(({ severity, title, detail }) => ({
+    severity: severity === 'action' ? 'Must check' : 'Worth checking', title, detail,
+  })), ['severity', 'title', 'detail'])
   add('Selected documents', doc?.files.map((file) => ({ ...file })) ?? [], ['name', 'relativePath', 'size'])
   add('Document suggestions', doc?.suggestions.map((suggestion) => ({ ...suggestion })) ?? [], ['fileName', 'kind', 'title', 'selected', 'amount', 'detail'])
   add('Likely charities', doc?.charityCandidates.map(({ payments, ...candidate }) => ({

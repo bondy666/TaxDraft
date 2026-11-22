@@ -273,6 +273,12 @@ band (£56,867), the tax on non-savings income (£11,373.40 + £30,388.80) — m
   New sources append unverified entries; they do not overwrite manual figures.
 - **Computation** — the full working, laid out like a professional computation, down to the
   balance due or refund.
+- **Zero amounts** — zeros that look like a mistake (a cost or rent receipt of £0, a P60 with no
+  pay, interest of £0 when the bank shows some, a property with costs but no rent) are listed on
+  the Review tab, and £0 costs are highlighted in the expense table. Rows where every amount is
+  zero are left out of the exported spreadsheet, which lists the suspicious ones in a
+  "Zero amounts to check" sheet. Expected zeros, such as Other income nothing has been ticked
+  for yet, aren't flagged.
 - **Reliefs** — a generated list of things worth checking based on what you've entered (the
   £100k–£125,140 taper band, Marriage Allowance, ISA headroom, Child Benefit charge, jointly-owned
   property apportionment, pension annual allowance taper, etc.), plus a standing checklist of the

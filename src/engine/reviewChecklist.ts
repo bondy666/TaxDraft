@@ -1,6 +1,7 @@
 import type { ReliefFlag, TaxReturnData } from '../types'
 import type { DocumentExportSnapshot } from './spreadsheetExport'
 import { corporationEstimateIssues, hasSoleTrade, isCompanyMode } from './business.ts'
+import { unexpectedZeroAmounts } from './zeroAmounts.ts'
 
 export type ReviewTab = 'Documents' | 'Personal' | 'Income' | 'Computation' | 'Reliefs'
 
@@ -166,6 +167,8 @@ export function buildReviewChecklist(
         'Documents')
     }
   }
+
+  items.push(...unexpectedZeroAmounts(data))
 
   flags.forEach((flag) => {
     if (flag.severity === 'action' || flag.severity === 'check') {

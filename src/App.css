@@ -194,7 +194,8 @@ body {
 }
 .undo-dismiss:hover { color: #FFFFFF; }
 
-.property-expense.possible-duplicate td { background: #FFF3D6; }
+.property-expense.possible-duplicate td,
+.property-expense.zero-amount td { background: #FFF3D6; }
 .duplicate-note {
   display: block;
   margin-top: 4px;

@@ -49,7 +49,7 @@ test('exports all return sections, evidence, computation, checks and current doc
   const workbook = createTaxWorkbook(data, computation, rates, flags, documents, new Date('2026-11-07T00:00:00Z'))
   const bytes = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
   const restored = XLSX.read(bytes, { type: 'buffer' })
-  assert.equal(restored.SheetNames.length, 26)
+  assert.equal(restored.SheetNames.length, 27)
   assert.equal(rows(restored, 'Employment')[0]['P60 Pay'], 30000)
   assert.equal(rows(restored, 'Employment')[0]['P60 Source / Verified'], true)
   assert.equal(rows(restored, 'Properties')[0]['Allowable Expenses'], 500)
@@ -179,6 +179,11 @@ test('rows whose money figures are all zero are left out, but entries awaiting r
   const imported = importTaxWorkbook(workbook)
   assert.deepEqual(imported.other, data.other)
   assert.equal(imported.properties[0].expenseEvidence.length, 2)
+  // The zero cost and empty bank reference that were left out are listed for checking instead.
+  const zeroChecks = rows(workbook, 'Zero amounts to check').map((row) => row.Title)
+  assert.ok(zeroChecks.some((title) => /cost with no amount/.test(title)))
+  assert.ok(zeroChecks.some((title) => /no money in or out/.test(title)))
+  assert.ok(zeroChecks.some((title) => title === 'No pay entered for Placeholder'))
 })
 
 test('invalid non-finite numeric input fails explicitly rather than producing a misleading export', () => {
