@@ -88,7 +88,7 @@ export function createTaxWorkbook(
   })), ['field', 'value', 'evidence'])
   add('Employment', data.employments.map((item) => ({ ...item })), ['employer', 'p60Pay', 'benefitsInKind', 'taxDeducted'])
   const { invoices, ...business } = data.business ?? emptyBusiness()
-  add('Business settings', [{ ...business }], ['status', 'soleTraderBasis', 'companyStart', 'companyEnd', 'companySimpleCase'])
+  add('Business settings', [{ ...business }], ['status', 'taxMode', 'soleTraderBasis', 'companyStart', 'companyEnd', 'companySimpleCase'])
   add('Business invoices', invoices.map((invoice) => ({ ...invoice })), ['id', 'business', 'kind', 'source', 'sourceHash', 'date', 'amount', 'confirmed'])
   add('Properties', data.properties.map(({ expenseEvidence, bankEvidence, rentalIncomeEvidence, ...property }) => {
     const includedExpenses = evidencedPropertyExpenses({ ...property, expenseEvidence })

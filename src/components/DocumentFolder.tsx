@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { EmploymentIncome } from '../types'
+import type { EmploymentIncome, TaxReturnData } from '../types'
 import type { PropertyLet } from '../types'
+import { buildDocumentChecklist } from '../engine/documentChecklist'
+import { DocumentChecklistPanel } from './DocumentChecklist'
 import {
   analyzeDocument,
   isSupportedDocument,
@@ -38,26 +40,6 @@ interface WindowWithDirectoryPicker extends Window {
   showDirectoryPicker?: (options: { mode: 'read' }) => Promise<DirectoryHandleLike>
 }
 
-// The standard checklist most UK accountants ask for — lifted from the kind of
-// document request letter Self Assessment clients typically get.
-const CHECKLIST: { id: string; label: string; keywords: string[] }[] = [
-  { id: 'p60', label: 'If employed: P60 (or last payslip before 5 April)', keywords: ['p60', 'payslip'] },
-  { id: 'business', label: 'If self-employed or running a company: invoices and business expense records (enter in Income)', keywords: ['invoice', 'business'] },
-  { id: 'p11d', label: 'P11D — benefits in kind', keywords: ['p11d'] },
-  { id: 'state-pension', label: 'State Pension letter/amount', keywords: ['state pension', 'statepension'] },
-  { id: 'other-pension', label: 'Other pension P60s / payslips', keywords: ['pension'] },
-  { id: 'lettings', label: 'Lettings statements / rental accounts', keywords: ['letting', 'rental', 'property', 'tenancy'] },
-  { id: 'interest', label: 'Bank/building society interest certificates', keywords: ['interest', 'savings'] },
-  { id: 'dividends', label: 'Dividend vouchers/counterfoils', keywords: ['dividend'] },
-  { id: 'chargeable-event', label: 'Chargeable event certificates (bonds/life policies)', keywords: ['chargeable', 'bond', 'policy'] },
-  { id: 'r185', label: 'R185 — trust income', keywords: ['r185', 'trust'] },
-  { id: 'gift-aid', label: 'Gift Aid records', keywords: ['gift aid', 'giftaid', 'charity', 'donation'] },
-  { id: 'pension-contributions', label: 'Pension contribution certificates', keywords: ['pension contribution', 'contribution'] },
-  { id: 'loan-interest', label: 'Loan interest certificates (where relief is claimed)', keywords: ['loan interest', 'mortgage certificate'] },
-  { id: 'disposals', label: 'Records of assets bought/sold', keywords: ['disposal', 'sale', 'purchase', 'capital gain', 'cgt'] },
-  { id: 'prior-computation', label: 'Last year\u2019s computation, for comparison', keywords: ['computation', 'tax return', 'sa100'] },
-]
-
 async function collectFiles(directory: DirectoryHandleLike): Promise<File[]> {
   const files: File[] = []
   for await (const [, entry] of directory.entries()) {
@@ -78,6 +60,9 @@ export function DocumentFolder({
   donationRecipients,
   onDonationRecipientsChange,
   onExportSnapshot,
+  returnData,
+  companyMode,
+  onOpenIncome,
 }: {
   taxYearId: string
   onImport: (suggestions: DocumentSuggestion[]) => void
@@ -90,6 +75,9 @@ export function DocumentFolder({
   donationRecipients?: string[]
   onDonationRecipientsChange: (recipients: string[]) => void
   onExportSnapshot: (snapshot: DocumentExportSnapshot) => void
+  returnData: TaxReturnData
+  companyMode: boolean
+  onOpenIncome: () => void
 }) {
   const employmentsRef = useRef(employments)
   employmentsRef.current = employments
@@ -467,8 +455,7 @@ export function DocumentFolder({
     )
   }
 
-  const filenames = files.map((file) => file.name.toLowerCase())
-  const matchedFor = (keywords: string[]) => filenames.some((name) => keywords.some((keyword) => name.includes(keyword)))
+  const checklist = buildDocumentChecklist(returnData, files.map((file) => file.name))
   const supportsFolderPicker = typeof (window as WindowWithDirectoryPicker).showDirectoryPicker === 'function'
 
   return (
@@ -548,6 +535,8 @@ export function DocumentFolder({
         )}
         {progress && <p className="hint folder-status" role="status">{progress}</p>}
       </section>
+      <DocumentChecklistPanel checklist={checklist} filesChosen={files.length > 0} onOpenIncome={onOpenIncome} />
+      {!companyMode && (<>
       <section className="suggestion-review" aria-label="Rental income suggestions">
         <h3>Potential rental income sources</h3>
         <p className="hint">
@@ -590,7 +579,7 @@ export function DocumentFolder({
       <section className="suggestion-review charity-review" aria-label="Charity suggestions">
         <div className="review-heading">
           <div>
-            <p className="step-label">REVIEW <span>02</span></p>
+            <p className="step-label">REVIEW <span>03</span></p>
             <h3>Charity &amp; Gift Aid suggestions</h3>
           </div>
           {charityCandidates.length > 0 && (
@@ -731,13 +720,14 @@ export function DocumentFolder({
         )}
         <p className="hint">Names are saved with this return. Removing a name stops future matching; review or exclude previously populated donations in Income.</p>
       </section>
+      </>)}
       {warnings.length > 0 && (
         <ul className="document-warnings">
           {warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}
         </ul>
       )}
 
-      {suggestions.length > 0 && (
+      {!companyMode && suggestions.length > 0 && (
         <section className="suggestion-review" aria-label="Extracted tax suggestions">
           <h3>Review extracted figures</h3>
           <p className="hint">
@@ -851,18 +841,6 @@ export function DocumentFolder({
       {importedCount > 0 && (
         <p className="hint" role="status">{importedCount} suggestion{importedCount === 1 ? '' : 's'} imported into your return.</p>
       )}
-
-      <div className="checklist">
-        {CHECKLIST.map((item) => {
-          const found = files.length > 0 && matchedFor(item.keywords)
-          return (
-            <div className={`checklist-row ${found ? 'found' : ''}`} key={item.id}>
-              <span className="checklist-mark">{found ? '✓' : '—'}</span>
-              <span>{item.label}</span>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }

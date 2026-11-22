@@ -1,5 +1,6 @@
 import type { ReliefFlag, TaxReturnData } from '../types'
 import type { DocumentExportSnapshot } from './spreadsheetExport'
+import { corporationEstimateIssues, hasSoleTrade, isCompanyMode } from './business.ts'
 
 export type ReviewTab = 'Documents' | 'Personal' | 'Income' | 'Computation' | 'Reliefs'
 
@@ -36,24 +37,30 @@ export function buildReviewChecklist(
     action('personal-name', 'Add your name', 'The personal details section has no name recorded.', 'Personal')
   }
 
+  const companyMode = isCompanyMode(data)
   if (!data.business || data.business.status === 'unknown') {
-    action('business-status', 'Confirm self-employment or company status',
-      'Confirm whether you are a sole trader, trade through a limited company, both or neither.', 'Income')
+    action('business-status', 'Tell us whether you worked for yourself',
+      'Answer “Did you work for yourself in this tax year?” in Income, even if the answer is No.', 'Income')
   } else if (data.business.status !== 'none') {
-    const active = data.business.status === 'both' ? ['soleTrader', 'company'] : [data.business.status]
+    // Personal tax only needs sole-trader records; company records matter only when working out Corporation Tax.
+    const active: string[] = companyMode ? ['company'] : hasSoleTrade(data.business) ? ['soleTrader'] : []
     for (const owner of active) {
       if (!data.business.invoices.some((invoice) => invoice.business === owner)) {
-        action(`business-records-${owner}`, `Add ${owner === 'company' ? 'company' : 'sole trader'} records`,
-          'Add and confirm invoices and expenses, or verify that there was no business activity in the period.', 'Income')
+        action(`business-records-${owner}`, `Add your ${owner === 'company' ? 'company’s' : 'business'} invoices and receipts`,
+          'Add each sale and business cost in Income, or check that there was no business activity in the period.', 'Income')
       }
     }
     const pending = data.business.invoices.filter((invoice) => active.includes(invoice.business) && !invoice.confirmed).length
-    if (pending) action('business-invoices', 'Review business invoices',
-      `${pending} invoice entries are unconfirmed and excluded. Check dates, VAT, allowable amounts and duplicates.`, 'Income')
-    if (active.includes('soleTrader')) check('sole-trader-tax', 'Check self-employment tax adjustments',
-      'National Insurance, payments on account, student-loan repayments and loss relief are not calculated. Review trading allowance, expenses and accounting basis.', 'Income')
-    if (active.includes('company')) check('company-tax', 'Review company corporation tax separately',
-      'The company estimate is limited to the stated assumptions; review all company income, adjustments, allowances and filing obligations.', 'Income')
+    if (pending) action('business-invoices', `Confirm ${pending} business entr${pending === 1 ? 'y' : 'ies'}`,
+      'Unconfirmed entries aren’t counted. Check each date and amount, and look out for duplicates.', 'Income')
+    if (active.includes('soleTrader')) check('business-sole-trader-tax', 'Self-employed extras aren’t calculated',
+      'National Insurance, payments on account, student loan repayments, the trading allowance and loss relief are not included.', 'Income')
+    if (companyMode) {
+      const issues = corporationEstimateIssues(data.business)
+      if (issues.length) action('business-company-estimate', 'Finish the company details', issues.join(' '), 'Income')
+      check('business-company-tax', 'Corporation Tax is an estimate',
+        'It covers simple cases only. Check capital allowances, losses, VAT and filing deadlines with an accountant.', 'Computation')
+    }
   }
 
   data.employments.forEach((employment) => {
@@ -167,5 +174,6 @@ export function buildReviewChecklist(
     }
   })
 
-  return items
+  // Personal-tax checks are hidden while working out the company's Corporation Tax.
+  return companyMode ? items.filter((item) => item.id.startsWith('business-')) : items
 }

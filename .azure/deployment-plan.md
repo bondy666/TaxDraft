@@ -102,3 +102,5 @@ Bicep validation does not apply to this code-only update. No infrastructure was 
   Verified live title and bundle `index-B2HCKi-O.js`.
 - 2026-11-21: Redeployed with the interest-only mortgage checkbox that fills annual interest from
   recorded mortgage payments. Verified live bundle `index-CzwHe--k.js`.
+- 2026-11-22: Redeployed with self-employment invoices and the limited-company corporation tax
+  estimate. Verified live bundle `index-D0SGXTQu.js`.

@@ -746,29 +746,99 @@ body {
 
 /* ---- Document checklist ---- */
 
-.checklist {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 14px;
+.doc-checklist {
+  margin: 0 0 24px;
+  padding: 22px 24px;
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--gold);
+  border-radius: 6px;
+  background: var(--paper-raised);
 }
-
-.checklist-row {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  font-size: 13px;
-  color: var(--ink-soft);
+.doc-checklist h3 { margin-bottom: 4px; font-size: 20px; }
+.doc-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px 24px;
 }
-
-.checklist-mark {
+.doc-group h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.doc-missing h4 { color: var(--redpen); }
+.doc-found h4 { color: var(--stamp); }
+.doc-not-needed h4 { color: var(--ink-soft); }
+.doc-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-list li { display: flex; gap: 10px; align-items: baseline; font-size: 14px; }
+.doc-list strong { display: block; font-weight: 600; }
+.doc-list small { display: block; color: var(--ink-soft); font-size: 12px; }
+.doc-mark {
+  flex: 0 0 18px;
   font-family: var(--font-mono);
-  width: 16px;
-  color: var(--rule-strong);
+  font-weight: 600;
+  text-align: center;
+}
+.doc-missing .doc-mark { color: var(--redpen); }
+.doc-found .doc-mark { color: var(--stamp); }
+.doc-not-needed .doc-mark, .doc-optional .doc-mark { color: var(--rule-strong); }
+.doc-not-needed strong { text-decoration: line-through; text-decoration-color: var(--rule-strong); }
+.doc-optional { margin-top: 16px; font-size: 13px; color: var(--ink-soft); }
+.doc-optional summary { cursor: pointer; font-weight: 600; }
+.doc-optional .doc-list { margin-top: 10px; }
+.doc-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 5px;
+  background: var(--stamp-soft);
+  font-size: 14px;
 }
 
-.checklist-row.found { color: var(--ink); }
-.checklist-row.found .checklist-mark { color: var(--stamp); font-weight: 600; }
+.mode-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: -12px 0 22px;
+  padding: 12px 16px;
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  background: #FBF1DC;
+  font-size: 14px;
+}
+.mode-choice {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.mode-choice legend { padding: 0 6px; font-size: 13px; color: var(--ink-soft); }
+.mode-choice label { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.business-block { margin-top: 22px; }
+.business-block .form-grid { margin-bottom: 14px; }
+.business-block h3 { margin: 18px 0 8px; font-size: 16px; }
+.business-entry { padding: 10px 0; border-top: 1px solid var(--rule); }
+.business-entry-source { flex-basis: 100%; font-size: 13px; overflow-wrap: anywhere; }
+.business-entry-note { flex-basis: 100%; margin: 0; }
+.business-total { margin: 14px 0 6px; font-size: 15px; }
+.business-notes { margin: 10px 0; font-size: 13px; color: var(--ink-soft); }
+.business-notes summary { cursor: pointer; color: var(--stamp); }
+.business-notes ul { margin: 8px 0 0; padding-left: 18px; }
 
 .document-actions {
   display: flex;

@@ -19,12 +19,15 @@ import { buildSearchIndex, type SearchTab } from './engine/searchIndex'
 import { SearchBox } from './components/SearchBox'
 import { UndoBar } from './components/UndoBar'
 import { BusinessSection } from './components/BusinessSection'
-import { emptyBusiness } from './engine/business'
+import { CompanyComputation } from './components/CompanyComputation'
+import { emptyBusiness, isCompanyMode } from './engine/business'
 
 const STORAGE_KEY = 'taxdraft:draft'
 // Drafts saved before the app was consistently named TaxDraft.
 const LEGACY_STORAGE_KEY = 'self-assessment-workbook:draft'
 const TABS = ['Documents', 'Personal', 'Income', 'Review', 'Computation', 'Reliefs'] as const
+// Personal details and reliefs only matter for personal tax.
+const COMPANY_TABS: readonly typeof TABS[number][] = ['Documents', 'Income', 'Review', 'Computation']
 const DocumentFolder = lazy(() => import('./components/DocumentFolder').then((module) => ({ default: module.DocumentFolder })))
 
 export default function App() {
@@ -70,9 +73,20 @@ export default function App() {
     [tr.data, flags, documentExport],
   )
   const unresolvedReviewCount = reviewItems.filter((item) => item.severity !== 'info').length
-  const searchIndex = useMemo(
-    () => buildSearchIndex(tr.data, result, flags, reviewItems, documentExport),
-    [tr.data, result, flags, reviewItems, documentExport],
+  const companyMode = isCompanyMode(tr.data)
+  const visibleTabs: readonly typeof TABS[number][] = companyMode ? COMPANY_TABS : TABS
+  const activeTab = visibleTabs.includes(tab) ? tab : 'Income'
+  const searchIndex = useMemo(() => {
+    const entries = buildSearchIndex(tr.data, result, flags, reviewItems, documentExport)
+    return companyMode
+      ? entries.filter((entry) => entry.tab === 'Review' || entry.section === 'Self-employment and company')
+      : entries
+  }, [tr.data, result, flags, reviewItems, documentExport, companyMode])
+  const updateBusiness = (update: (current: NonNullable<typeof tr.data.business>) => NonNullable<typeof tr.data.business>) =>
+    tr.setData((current) => ({ ...current, business: update(current.business ?? emptyBusiness()) }))
+  const businessSection = (
+    <BusinessSection business={tr.data.business} taxYearId={tr.data.taxYearId}
+      onRemove={tr.removeBusinessInvoice} onChange={updateBusiness} />
   )
 
   function openSearchResult(nextTab: SearchTab, text: string) {
@@ -168,10 +182,10 @@ export default function App() {
       {exportStatus && <p className="hint" role="status">{exportStatus}</p>}
 
       <nav className="tab-bar">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t}
-            className={`tab-btn ${tab === t ? 'active' : ''}`}
+            className={`tab-btn ${activeTab === t ? 'active' : ''}`}
             onClick={() => {
               if (t === 'Documents') setDocumentsOpened(true)
               setTab(t)
@@ -187,17 +201,26 @@ export default function App() {
         ))}
       </nav>
 
+      {companyMode && (
+        <div className="mode-banner" role="status">
+          <span>You’re working out your <strong>company’s Corporation Tax</strong>. Your personal tax entries are kept, but hidden.</span>
+          <button type="button" className="ghost-btn" onClick={() => updateBusiness((current) => ({ ...current, taxMode: 'personal' }))}>
+            Switch to personal tax
+          </button>
+        </div>
+      )}
+
       <main className="app-main">
-        {tab === 'Personal' && (
+        {activeTab === 'Personal' && (
           <PersonalDetailsForm personal={tr.data.personal} onChange={tr.updatePersonal} sources={tr.data.personalSources} />
         )}
 
-        {tab === 'Income' && (
+        {activeTab === 'Income' && companyMode && businessSection}
+
+        {activeTab === 'Income' && !companyMode && (
           <>
             <EmploymentSection items={tr.data.employments} m={tr.employments} />
-            <BusinessSection business={tr.data.business} taxYearId={tr.data.taxYearId}
-              onRemove={tr.removeBusinessInvoice}
-              onChange={(update) => tr.setData((current) => ({ ...current, business: update(current.business ?? emptyBusiness()) }))} />
+            {businessSection}
             <PropertySection items={tr.data.properties} m={tr.properties} onAllocate={tr.allocateProperty} onMoveBank={tr.moveBankReference}
               onAllocateNew={tr.allocateToNewProperty} onRemoveExpenses={tr.removePropertyExpenses}
               onRemoveRentalIncome={tr.removeRentalIncome} />
@@ -211,7 +234,7 @@ export default function App() {
         )}
 
         {documentsOpened && (
-          <div hidden={tab !== 'Documents'}>
+          <div hidden={activeTab !== 'Documents'}>
           <Suspense fallback={<div className="card">Loading document tools…</div>}>
             <DocumentFolder
               key={documentSessionKey}
@@ -225,18 +248,23 @@ export default function App() {
               donationRecipients={tr.data.charitableDonationRecipients}
               onDonationRecipientsChange={tr.setCharitableDonationRecipients}
               onExportSnapshot={setDocumentExport}
+              returnData={tr.data}
+              companyMode={companyMode}
+              onOpenIncome={() => setTab('Income')}
             />
           </Suspense>
           </div>
         )}
 
-        {tab === 'Computation' && <ComputationSummary result={result} rates={rates} data={tr.data} />}
+        {activeTab === 'Computation' && (companyMode
+          ? <CompanyComputation business={tr.data.business} />
+          : <ComputationSummary result={result} rates={rates} data={tr.data} />)}
 
-        {tab === 'Review' && (
+        {activeTab === 'Review' && (
           <ReviewChecklist items={reviewItems} onNavigate={(nextTab) => setTab(nextTab)} />
         )}
 
-        {tab === 'Reliefs' && <ReliefsPanel flags={flags} />}
+        {activeTab === 'Reliefs' && <ReliefsPanel flags={flags} />}
       </main>
 
       <footer className="app-footer">

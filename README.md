@@ -80,6 +80,10 @@ band (£56,867), the tax on non-savings income (£11,373.40 + £30,388.80) — m
   with readable files. Document selection, analysis and unchecked suggestions survive tab
   switches. Selecting another tax year reanalyses the selected files. Reloading the page requires
   selecting files again; imported Income figures and completed allocations remain saved.
+  A document checklist under the folder picker works out, from what you've entered and the file
+  names chosen, which documents are still needed, which were found, and which aren't needed
+  (for example, invoices when you've said you don't work for yourself). Anything that only
+  applies in some situations is collapsed under "Only if it applies to you".
   The browser locally reads
   text-based PDFs, CSV/XLSX statements, and images/scanned PDFs via OCR. It proposes figures it
   can recognize from P60s, P11Ds, rental statements, interest/dividend/pension documents, and
@@ -280,8 +284,12 @@ band (£56,867), the tax on non-savings income (£11,373.40 + £30,388.80) — m
   traditional accounting uses invoice/bill dates and may need accrual adjustments. Sole-trader
   profits enter the personal income-tax estimate; losses are not automatically offset. Class 4
   National Insurance, payments on account, student loans and trading allowance are not calculated.
-  The separate corporation-tax estimate is limited to the full-year ordinary UK company
-  assumptions displayed in the app; company profits do not enter the personal return. Check
+  If you have a limited company, choose between your personal tax (the default) and your
+  company's Corporation Tax. Choosing Corporation Tax switches the whole app to company mode:
+  only the company's details, documents, review items and estimate are shown, and your personal
+  entries are kept but hidden until you switch back. The estimate is limited to the full-year
+  ordinary UK company assumptions displayed in the app; company profits never enter the personal
+  return. Check
   VAT, allowable expenses, other income, capital allowances and reliefs with an adviser.
   See [HMRC cash basis](https://www.gov.uk/simpler-income-tax-cash-basis),
   [self-employed National Insurance](https://www.gov.uk/self-employed-national-insurance-rates)

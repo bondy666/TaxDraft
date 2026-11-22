@@ -126,6 +126,8 @@ export interface BusinessInvoice {
 
 export interface BusinessDetails {
   status: 'unknown' | 'none' | 'soleTrader' | 'company' | 'both'
+  /** Which tax the app works out for someone with a limited company; personal tax unless chosen otherwise. */
+  taxMode?: 'personal' | 'company'
   soleTraderBasis: 'cash' | 'traditional'
   companyStart: string
   companyEnd: string

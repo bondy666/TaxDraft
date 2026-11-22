@@ -86,7 +86,7 @@ test('exports all return sections, evidence, computation, checks and current doc
 
 test('business status and invoice review survive spreadsheet export and import', () => {
   const business = {
-    status: 'both', soleTraderBasis: 'traditional', companyStart: '2025-04-01', companyEnd: '2026-03-31',
+    status: 'both', taxMode: 'company', soleTraderBasis: 'traditional', companyStart: '2025-04-01', companyEnd: '2026-03-31',
     companySimpleCase: true, invoices: [
       { id: 'one', business: 'soleTrader', kind: 'income', source: 'invoice.pdf', sourceHash: 'abc', date: '2025-06-01', amount: 1200, confirmed: true },
       { id: 'two', business: 'company', kind: 'expense', source: 'Manual entry', date: '', amount: 0, confirmed: false },

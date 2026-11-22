@@ -190,8 +190,10 @@ export function importTaxWorkbook(workbook: XLSX.WorkBook): TaxReturnData {
     if (settings.length !== 1) throw new Error('Business settings must contain exactly one row.')
     const status = text(settings[0], 'status', true)
     const basis = text(settings[0], 'soleTraderBasis', true)
-    if (!['unknown', 'none', 'soleTrader', 'company', 'both'].includes(status) || !['cash', 'traditional'].includes(basis)) {
-      throw new Error('Business settings contain an unsupported status or accounting basis.')
+    const taxMode = text(settings[0], 'taxMode') || 'personal'
+    if (!['unknown', 'none', 'soleTrader', 'company', 'both'].includes(status) || !['cash', 'traditional'].includes(basis) ||
+      !['personal', 'company'].includes(taxMode)) {
+      throw new Error('Business settings contain an unsupported status, tax choice or accounting basis.')
     }
     const invoices: BusinessInvoice[] = list(workbook, 'Business invoices', (row) => {
       const owner = text(row, 'business', true)
@@ -213,7 +215,8 @@ export function importTaxWorkbook(workbook: XLSX.WorkBook): TaxReturnData {
       }
     })
     business = {
-      status: status as BusinessDetails['status'], soleTraderBasis: basis as BusinessDetails['soleTraderBasis'],
+      status: status as BusinessDetails['status'], taxMode: taxMode as NonNullable<BusinessDetails['taxMode']>,
+      soleTraderBasis: basis as BusinessDetails['soleTraderBasis'],
       companyStart: text(settings[0], 'companyStart'), companyEnd: text(settings[0], 'companyEnd'),
       companySimpleCase: boolean(settings[0], 'companySimpleCase'), invoices,
     }
