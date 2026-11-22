@@ -114,3 +114,5 @@ Bicep validation does not apply to this code-only update. No infrastructure was 
   live bundle `index-BeaWUn77.js`.
 - 2026-11-22: Redeployed with similar-cost decisions in the expense breakdown. Verified live bundle
   `index-CzJH339E.js`.
+- 2026-11-22: Redeployed with zero-amount rows left out of the exported spreadsheet. Verified live
+  bundle `index-DgnaLkrA.js`.
