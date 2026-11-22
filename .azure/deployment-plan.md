@@ -108,3 +108,5 @@ Bicep validation does not apply to this code-only update. No infrastructure was 
   and the inferred document checklist. Verified live bundle `index-BFYKgBbI.js`.
 - 2026-11-22: Redeployed with other income listed by payer (taxable tick box) and a simplified
   Documents tab. Verified live bundle `index-Qw-wS63m.js`.
+- 2026-11-22: Redeployed with similar-payer matching for rent suggestions. Verified live bundle
+  `index-XO4uaHso.js`.
