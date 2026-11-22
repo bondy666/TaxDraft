@@ -456,6 +456,35 @@ async function extractPdfText(file: File): Promise<{ text: string; scanned: bool
   return { text: await ocrPdf(pdf, pdf.numPages), scanned: true, p60 }
 }
 
+/** Read an invoice as an unconfirmed proposal. The user must choose its purpose and accounting date. */
+export async function readBusinessInvoice(file: File): Promise<{ amount?: number; hash: string; warning: string }> {
+  if (file.size > MAX_FILE_SIZE) throw new Error('The invoice exceeds the 25 MB per-file limit.')
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  let text: string
+  let scanned = false
+  if (extension === 'pdf') {
+    const result = await extractPdfText(file)
+    text = result.text
+    scanned = result.scanned
+  } else if (extension && /^(png|jpe?g|webp|bmp|tiff?)$/.test(extension)) {
+    text = await extractImageText(file)
+    scanned = true
+  } else {
+    throw new Error('Use a PDF or image invoice, or enter its figures manually.')
+  }
+  const matches = [...text.matchAll(/\b(?:invoice total|total due|amount due|grand total|total)\s*[:£]?\s*(?:£|GBP)?\s*([\d,]+(?:\.\d{2})?)/gi)]
+    .map((match) => Number(match[1].replace(/,/g, ''))).filter((amount) => Number.isFinite(amount) && amount > 0)
+  const unique = [...new Set(matches)]
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return {
+    ...(unique.length === 1 ? { amount: unique[0] } : {}),
+    hash,
+    warning: `${scanned ? 'OCR was used and scanned PDFs are limited to the first 20 pages. ' : ''}` +
+      (unique.length === 1 ? 'Check the proposed total, including VAT treatment.' : 'No unambiguous total found; enter it from the invoice.'),
+  }
+}
+
 async function ocrPdf(pdf: PDFDocumentProxy, pageCount: number): Promise<string> {
   const { createWorker } = await import('tesseract.js')
   const worker = await createWorker('eng')

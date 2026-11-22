@@ -41,7 +41,8 @@ interface WindowWithDirectoryPicker extends Window {
 // The standard checklist most UK accountants ask for — lifted from the kind of
 // document request letter Self Assessment clients typically get.
 const CHECKLIST: { id: string; label: string; keywords: string[] }[] = [
-  { id: 'p60', label: 'P60 (or last payslip before 5 April)', keywords: ['p60', 'payslip'] },
+  { id: 'p60', label: 'If employed: P60 (or last payslip before 5 April)', keywords: ['p60', 'payslip'] },
+  { id: 'business', label: 'If self-employed or running a company: invoices and business expense records (enter in Income)', keywords: ['invoice', 'business'] },
   { id: 'p11d', label: 'P11D — benefits in kind', keywords: ['p11d'] },
   { id: 'state-pension', label: 'State Pension letter/amount', keywords: ['state pension', 'statepension'] },
   { id: 'other-pension', label: 'Other pension P60s / payslips', keywords: ['pension'] },

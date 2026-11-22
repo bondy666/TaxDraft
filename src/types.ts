@@ -113,6 +113,26 @@ export interface Reliefs {
   giftAidNet: number // net amount you actually donated
 }
 
+export interface BusinessInvoice {
+  id: string
+  business: 'soleTrader' | 'company'
+  kind: 'income' | 'expense'
+  source: string
+  sourceHash?: string
+  date: string
+  amount: number
+  confirmed: boolean
+}
+
+export interface BusinessDetails {
+  status: 'unknown' | 'none' | 'soleTrader' | 'company' | 'both'
+  soleTraderBasis: 'cash' | 'traditional'
+  companyStart: string
+  companyEnd: string
+  companySimpleCase: boolean
+  invoices: BusinessInvoice[]
+}
+
 export interface TaxReturnData {
   taxYearId: string
   personal: PersonalDetails
@@ -123,6 +143,7 @@ export interface TaxReturnData {
   pensions: PensionIncome[]
   other: OtherIncome[]
   reliefs: Reliefs
+  business?: BusinessDetails
   personalSources?: Partial<Record<keyof PersonalDetails, string>>
   bankReliefCandidates?: BankReliefCandidate[]
   privatePensionRecipients?: string[]

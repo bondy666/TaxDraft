@@ -3,6 +3,7 @@ import type { ComputationResult, TaxReturnData, TaxYearRates } from '../types'
 import { evidencedPropertyExpenses } from '../engine/propertyExpenses'
 import { HICBC_THRESHOLD_FULL, HICBC_THRESHOLD_START } from '../data/taxYears'
 import { FigureHelp } from './FigureHelp'
+import { soleTraderTotals } from '../engine/business'
 
 function fmt(n: number) {
   const sign = n < 0 ? '−' : ''
@@ -78,7 +79,12 @@ export function ComputationSummary({ result, rates, data }: {
     label: item.description || 'Other income', amount: item.amount,
     detail: 'Amount entered in Other income.', evidence: item.bankSource?.evidence,
   }))
-  const nonSavingsParts = [...employmentParts, ...propertyParts, ...pensionParts, ...otherParts]
+  const trading = soleTraderTotals(data.business, data.taxYearId)
+  const tradingParts = data.business && ['soleTrader', 'both'].includes(data.business.status) ? [{
+    label: 'Sole trader profit', amount: Math.max(0, trading.profit),
+    detail: `Confirmed sales £${fmt(trading.income)} less allowable expenses £${fmt(trading.expenses)}. Loss relief is not applied automatically.`,
+  }] : []
+  const nonSavingsParts = [...employmentParts, ...tradingParts, ...propertyParts, ...pensionParts, ...otherParts]
   const savingsParts = data.savings.map((item) => ({
     label: item.source || 'Interest source', amount: item.amount,
     detail: item.bankSource ? `Imported from ${item.bankSource.fileName}.` : 'Amount entered in Interest received.',
@@ -133,9 +139,10 @@ export function ComputationSummary({ result, rates, data }: {
   return (
     <div className="card ledger">
       <h2>Computation — {rates.label}</h2>
+      {tradingParts.length > 0 && <p className="hint error">This income-tax estimate excludes self-employed National Insurance, student loans and payments on account. Company tax is separate.</p>}
 
       <div className="ledger-section-title">Income</div>
-      <Row label="Non-savings income (employment, property, pensions, other)" value={fmt(result.totalNonSavingsIncome)}
+      <Row label="Non-savings income (employment, trading, property, pensions, other)" value={fmt(result.totalNonSavingsIncome)}
         help={sumExplanation(nonSavingsParts, result.totalNonSavingsIncome, 'Included in non-savings income')} />
       <Row label="UK interest" value={fmt(result.totalSavingsIncome)}
         help={sumExplanation(savingsParts, result.totalSavingsIncome, 'Included interest sources')} />
@@ -241,7 +248,9 @@ export function ComputationSummary({ result, rates, data }: {
         help={sumExplanation(taxDeductedParts, result.taxDeductedAtSource, 'Tax already deducted')}
         negative />
       <Row
-        label={result.balanceDueOrRefund >= 0 ? 'Balance due to HMRC' : 'Refund due'}
+        label={tradingParts.length > 0
+          ? (result.balanceDueOrRefund >= 0 ? 'Estimated income tax balance (NI excluded)' : 'Estimated income tax refund (NI excluded)')
+          : (result.balanceDueOrRefund >= 0 ? 'Balance due to HMRC' : 'Refund due')}
         value={fmt(Math.abs(result.balanceDueOrRefund))}
         help={`Income tax due £${fmt(result.incomeTaxDue)} + High Income Child Benefit Charge £${fmt(result.highIncomeChildBenefitCharge)} − tax already deducted at source £${fmt(result.taxDeductedAtSource)} = ${result.balanceDueOrRefund < 0 ? 'refund' : 'balance due'} £${fmt(Math.abs(result.balanceDueOrRefund))}.`}
         strong

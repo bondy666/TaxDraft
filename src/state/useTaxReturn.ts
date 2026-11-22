@@ -135,6 +135,22 @@ export function useTaxReturn() {
     setData((d) => ({ ...d, taxYearId }))
   }, [])
 
+  const removeBusinessInvoice = useCallback((id: string) => {
+    const invoices = dataRef.current.business?.invoices ?? []
+    const index = invoices.findIndex((invoice) => invoice.id === id)
+    if (index < 0) return
+    const invoice = invoices[index]
+    remember(`Removed business invoice “${invoice.source}”`, (current) => {
+      if (!current.business || current.business.invoices.some((item) => item.id === id)) return current
+      const restored = [...current.business.invoices]
+      restored.splice(Math.min(index, restored.length), 0, invoice)
+      return { ...current, business: { ...current.business, invoices: restored } }
+    })
+    setData((current) => current.business ? {
+      ...current, business: { ...current.business, invoices: current.business.invoices.filter((item) => item.id !== id) },
+    } : current)
+  }, [remember])
+
   const updatePersonal = useCallback((patch: Partial<TaxReturnData['personal']>) => {
     setData((d) => {
       const personalSources = { ...d.personalSources }
@@ -310,6 +326,7 @@ export function useTaxReturn() {
     loadExample,
     reset,
     setTaxYear,
+    removeBusinessInvoice,
     updatePersonal,
     updateReliefs,
     importDocumentSuggestions,

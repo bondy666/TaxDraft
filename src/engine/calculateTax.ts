@@ -6,6 +6,7 @@ import type {
 } from '../types'
 import { HICBC_THRESHOLD_START, HICBC_THRESHOLD_FULL } from '../data/taxYears.ts'
 import { evidencedPropertyExpenses } from './propertyExpenses.ts'
+import { soleTraderTotals } from './business.ts'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
@@ -61,7 +62,9 @@ export function calculateTax(data: TaxReturnData, rates: TaxYearRates): Computat
   const taxDeductedFromPensions = data.pensions.reduce((s, p) => s + p.taxDeducted, 0)
   const otherTotal = data.other.reduce((s, o) => s + o.amount, 0)
 
-  const totalNonSavingsIncome = employmentTotal + propertyTotal + pensionTotal + otherTotal
+  // Trading losses need a separate relief election; do not offset them automatically.
+  const tradingProfit = Math.max(0, soleTraderTotals(data.business, data.taxYearId).profit)
+  const totalNonSavingsIncome = employmentTotal + tradingProfit + propertyTotal + pensionTotal + otherTotal
   const totalSavingsIncome = data.savings.reduce((s, i) => s + i.amount, 0)
   const totalDividendIncome = data.dividends.reduce((s, d) => s + d.amount, 0)
   const totalIncome = totalNonSavingsIncome + totalSavingsIncome + totalDividendIncome

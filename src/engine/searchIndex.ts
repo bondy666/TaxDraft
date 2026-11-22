@@ -50,6 +50,11 @@ export function buildSearchIndex(
       (item.p60Source ? `; from ${item.p60Source.fileName}` : ''))
   }
 
+  for (const invoice of data.business?.invoices ?? []) {
+    add(`business-invoice-${invoice.id}`, 'Income', 'Self-employment and company', invoice.source,
+      `${invoice.business} ${invoice.kind} · ${invoice.date} · ${money(invoice.amount)} · ${invoice.confirmed ? 'confirmed' : 'unconfirmed'}`)
+  }
+
   for (const property of data.properties) {
     const name = property.name || 'Property'
     add(`property-${property.id}`, 'Income', 'Land and property', name,

@@ -36,6 +36,26 @@ export function buildReviewChecklist(
     action('personal-name', 'Add your name', 'The personal details section has no name recorded.', 'Personal')
   }
 
+  if (!data.business || data.business.status === 'unknown') {
+    action('business-status', 'Confirm self-employment or company status',
+      'Confirm whether you are a sole trader, trade through a limited company, both or neither.', 'Income')
+  } else if (data.business.status !== 'none') {
+    const active = data.business.status === 'both' ? ['soleTrader', 'company'] : [data.business.status]
+    for (const owner of active) {
+      if (!data.business.invoices.some((invoice) => invoice.business === owner)) {
+        action(`business-records-${owner}`, `Add ${owner === 'company' ? 'company' : 'sole trader'} records`,
+          'Add and confirm invoices and expenses, or verify that there was no business activity in the period.', 'Income')
+      }
+    }
+    const pending = data.business.invoices.filter((invoice) => active.includes(invoice.business) && !invoice.confirmed).length
+    if (pending) action('business-invoices', 'Review business invoices',
+      `${pending} invoice entries are unconfirmed and excluded. Check dates, VAT, allowable amounts and duplicates.`, 'Income')
+    if (active.includes('soleTrader')) check('sole-trader-tax', 'Check self-employment tax adjustments',
+      'National Insurance, payments on account, student-loan repayments and loss relief are not calculated. Review trading allowance, expenses and accounting basis.', 'Income')
+    if (active.includes('company')) check('company-tax', 'Review company corporation tax separately',
+      'The company estimate is limited to the stated assumptions; review all company income, adjustments, allowances and filing obligations.', 'Income')
+  }
+
   data.employments.forEach((employment) => {
     if (employment.p60Source && !employment.p60Source.verified) {
       action(

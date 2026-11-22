@@ -18,6 +18,8 @@ import { ReviewChecklist } from './components/ReviewChecklist'
 import { buildSearchIndex, type SearchTab } from './engine/searchIndex'
 import { SearchBox } from './components/SearchBox'
 import { UndoBar } from './components/UndoBar'
+import { BusinessSection } from './components/BusinessSection'
+import { emptyBusiness } from './engine/business'
 
 const STORAGE_KEY = 'taxdraft:draft'
 // Drafts saved before the app was consistently named TaxDraft.
@@ -193,6 +195,9 @@ export default function App() {
         {tab === 'Income' && (
           <>
             <EmploymentSection items={tr.data.employments} m={tr.employments} />
+            <BusinessSection business={tr.data.business} taxYearId={tr.data.taxYearId}
+              onRemove={tr.removeBusinessInvoice}
+              onChange={(update) => tr.setData((current) => ({ ...current, business: update(current.business ?? emptyBusiness()) }))} />
             <PropertySection items={tr.data.properties} m={tr.properties} onAllocate={tr.allocateProperty} onMoveBank={tr.moveBankReference}
               onAllocateNew={tr.allocateToNewProperty} onRemoveExpenses={tr.removePropertyExpenses}
               onRemoveRentalIncome={tr.removeRentalIncome} />

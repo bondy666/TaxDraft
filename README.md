@@ -271,8 +271,21 @@ band (£56,867), the tax on non-savings income (£11,373.40 + £30,388.80) — m
   in the Reliefs tab reminds you if this applies to you.
 - **No Marriage Allowance auto-calculation** — it needs your spouse's income, which isn't
   captured here. Flagged instead as a manual check.
-- **No CGT, self-employment, or trust computation** — flagged as reminders in the Reliefs tab,
+- **No CGT or trust computation** — flagged as reminders in the Reliefs tab,
   not calculated.
+- **Business estimates are incomplete.** In Income, confirm whether you are a sole trader or
+  operate a limited company. Upload PDF/image invoices or enter them manually, then confirm the
+  tax-relevant amounts and dates. Only confirmed entries within the selected period count; the
+  original invoice is not retained. Cash-basis entries use payment dates and amounts, while
+  traditional accounting uses invoice/bill dates and may need accrual adjustments. Sole-trader
+  profits enter the personal income-tax estimate; losses are not automatically offset. Class 4
+  National Insurance, payments on account, student loans and trading allowance are not calculated.
+  The separate corporation-tax estimate is limited to the full-year ordinary UK company
+  assumptions displayed in the app; company profits do not enter the personal return. Check
+  VAT, allowable expenses, other income, capital allowances and reliefs with an adviser.
+  See [HMRC cash basis](https://www.gov.uk/simpler-income-tax-cash-basis),
+  [self-employed National Insurance](https://www.gov.uk/self-employed-national-insurance-rates)
+  and [Corporation Tax marginal relief](https://www.gov.uk/guidance/corporation-tax-marginal-relief).
 - **Not filing-ready.** This produces a working figure to sanity-check what you're being told,
   not a submission. Rates are updated for 2024/25 through 2026/27 based on published HMRC/Budget
   figures at the time of writing — always cross-check current-year rates at gov.uk before relying

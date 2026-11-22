@@ -49,7 +49,7 @@ test('exports all return sections, evidence, computation, checks and current doc
   const workbook = createTaxWorkbook(data, computation, rates, flags, documents, new Date('2026-11-07T00:00:00Z'))
   const bytes = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
   const restored = XLSX.read(bytes, { type: 'buffer' })
-  assert.equal(restored.SheetNames.length, 24)
+  assert.equal(restored.SheetNames.length, 26)
   assert.equal(rows(restored, 'Employment')[0]['P60 Pay'], 30000)
   assert.equal(rows(restored, 'Employment')[0]['P60 Source / Verified'], true)
   assert.equal(rows(restored, 'Properties')[0]['Allowable Expenses'], 500)
@@ -82,6 +82,21 @@ test('exports all return sections, evidence, computation, checks and current doc
   assert.equal(rows(restored, 'Statement transactions')[0].Date, '2025-05-10')
   assert.equal(rows(restored, 'Document warnings').length, 2)
   assert.equal(JSON.stringify({ data, computation, documents }), original)
+})
+
+test('business status and invoice review survive spreadsheet export and import', () => {
+  const business = {
+    status: 'both', soleTraderBasis: 'traditional', companyStart: '2025-04-01', companyEnd: '2026-03-31',
+    companySimpleCase: true, invoices: [
+      { id: 'one', business: 'soleTrader', kind: 'income', source: 'invoice.pdf', sourceHash: 'abc', date: '2025-06-01', amount: 1200, confirmed: true },
+      { id: 'two', business: 'company', kind: 'expense', source: 'Manual entry', date: '', amount: 0, confirmed: false },
+    ],
+  }
+  assert.deepEqual(importTaxWorkbook(createTaxWorkbook({ ...data, business }, computation, rates, flags)).business, business)
+  const old = createTaxWorkbook(data, computation, rates, flags)
+  delete old.Sheets['Business settings']
+  delete old.Sheets['Business invoices']
+  assert.equal(importTaxWorkbook(old).business, undefined)
 })
 
 test('imports editable return sections and property evidence from an exported workbook', () => {

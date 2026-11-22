@@ -1,9 +1,10 @@
 import * as XLSX from '@e965/xlsx'
 import { TAX_YEARS } from '../data/taxYears.ts'
+import { validBusinessDate } from './business.ts'
 import type {
   BankReliefCandidate, BankSource, DividendIncome, EmploymentIncome, OtherIncome, PersonalDetails,
   PensionIncome, PropertyExpenseEvidence, PropertyLet, PropertyRentalIncomeEvidence, SavingsInterest,
-  TaxReturnData,
+  TaxReturnData, BusinessDetails, BusinessInvoice,
 } from '../types'
 
 type SheetRow = Record<string, unknown>
@@ -180,6 +181,43 @@ export function importTaxWorkbook(workbook: XLSX.WorkBook): TaxReturnData {
   }
   const yearId = taxYearId(workbook)
   const { personal, sources } = importedPersonal(workbook)
+  let business: BusinessDetails | undefined
+  if (workbook.Sheets['Business settings'] || workbook.Sheets['Business invoices']) {
+    if (!workbook.Sheets['Business settings'] || !workbook.Sheets['Business invoices']) {
+      throw new Error('Both Business settings and Business invoices worksheets are required.')
+    }
+    const settings = rows(workbook, 'Business settings')
+    if (settings.length !== 1) throw new Error('Business settings must contain exactly one row.')
+    const status = text(settings[0], 'status', true)
+    const basis = text(settings[0], 'soleTraderBasis', true)
+    if (!['unknown', 'none', 'soleTrader', 'company', 'both'].includes(status) || !['cash', 'traditional'].includes(basis)) {
+      throw new Error('Business settings contain an unsupported status or accounting basis.')
+    }
+    const invoices: BusinessInvoice[] = list(workbook, 'Business invoices', (row) => {
+      const owner = text(row, 'business', true)
+      const kind = text(row, 'kind', true)
+      if (!['soleTrader', 'company'].includes(owner) || !['income', 'expense'].includes(kind)) {
+        throw new Error('A business invoice has an unsupported business or type.')
+      }
+      const sourceHash = text(row, 'sourceHash')
+      const date = text(row, 'date')
+      const amount = number(row, 'amount', 0, 0)
+      const confirmed = boolean(row, 'confirmed')
+      if ((date && !validBusinessDate(date)) || (confirmed && (!validBusinessDate(date) || amount <= 0))) {
+        throw new Error('A confirmed business invoice requires a valid date and positive amount.')
+      }
+      return {
+        id: id(row), business: owner as BusinessInvoice['business'], kind: kind as BusinessInvoice['kind'],
+        source: text(row, 'source', true), ...(sourceHash ? { sourceHash } : {}),
+        date, amount, confirmed,
+      }
+    })
+    business = {
+      status: status as BusinessDetails['status'], soleTraderBasis: basis as BusinessDetails['soleTraderBasis'],
+      companyStart: text(settings[0], 'companyStart'), companyEnd: text(settings[0], 'companyEnd'),
+      companySimpleCase: boolean(settings[0], 'companySimpleCase'), invoices,
+    }
+  }
   const employments: EmploymentIncome[] = list(workbook, 'Employment', (row) => {
     const p60SourceId = text(row, 'p60Source.id')
     const p60SourceFileName = text(row, 'p60Source.fileName')
@@ -296,6 +334,7 @@ export function importTaxWorkbook(workbook: XLSX.WorkBook): TaxReturnData {
   return {
     taxYearId: yearId,
     personal,
+    ...(business ? { business } : {}),
     personalSources: sources,
     employments,
     properties,

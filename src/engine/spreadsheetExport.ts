@@ -3,6 +3,7 @@ import type { ComputationResult, ReliefFlag, TaxReturnData, TaxYearRates } from 
 import type { DocumentSuggestion } from './documentImport'
 import type { CharityCandidate, SourcedBankTransaction } from './bankTransactions'
 import { evidencedPropertyExpenses } from './propertyExpenses.ts'
+import { emptyBusiness } from './business.ts'
 
 export interface DocumentExportSnapshot {
   taxYearId: string
@@ -86,6 +87,9 @@ export function createTaxWorkbook(
     field: label(field), value, evidence: data.personalSources?.[field as keyof typeof data.personal] ?? '',
   })), ['field', 'value', 'evidence'])
   add('Employment', data.employments.map((item) => ({ ...item })), ['employer', 'p60Pay', 'benefitsInKind', 'taxDeducted'])
+  const { invoices, ...business } = data.business ?? emptyBusiness()
+  add('Business settings', [{ ...business }], ['status', 'soleTraderBasis', 'companyStart', 'companyEnd', 'companySimpleCase'])
+  add('Business invoices', invoices.map((invoice) => ({ ...invoice })), ['id', 'business', 'kind', 'source', 'sourceHash', 'date', 'amount', 'confirmed'])
   add('Properties', data.properties.map(({ expenseEvidence, bankEvidence, rentalIncomeEvidence, ...property }) => {
     const includedExpenses = evidencedPropertyExpenses({ ...property, expenseEvidence })
     return {
