@@ -106,3 +106,5 @@ Bicep validation does not apply to this code-only update. No infrastructure was 
   estimate. Verified live bundle `index-D0SGXTQu.js`.
 - 2026-11-22: Redeployed with corporation tax as an opt-in company mode (personal tax by default)
   and the inferred document checklist. Verified live bundle `index-BFYKgBbI.js`.
+- 2026-11-22: Redeployed with other income listed by payer (taxable tick box) and a simplified
+  Documents tab. Verified live bundle `index-Qw-wS63m.js`.
