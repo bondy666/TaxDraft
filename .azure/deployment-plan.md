@@ -104,3 +104,5 @@ Bicep validation does not apply to this code-only update. No infrastructure was 
   recorded mortgage payments. Verified live bundle `index-CzwHe--k.js`.
 - 2026-11-22: Redeployed with self-employment invoices and the limited-company corporation tax
   estimate. Verified live bundle `index-D0SGXTQu.js`.
+- 2026-11-22: Redeployed with corporation tax as an opt-in company mode (personal tax by default)
+  and the inferred document checklist. Verified live bundle `index-BFYKgBbI.js`.
