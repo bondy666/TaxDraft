@@ -91,12 +91,17 @@ export function buildReviewChecklist(
   })
 
   data.other.forEach((entry) => {
-    if (entry.bankSource) {
-      if (!entry.bankSource.verified || entry.amount === 0) {
-        action(`other-${entry.bankSource.id}`, `Confirm other income — ${entry.description || 'Bank receipt'}`,
-          `Recorded receipts are £${entry.bankSource.recordedAmount.toFixed(2)}. Confirm the purpose and enter only the taxable amount.`,
+    if (!entry.bankSource) return
+    if (entry.receipts?.length) {
+      if (!entry.bankSource.verified) {
+        action(`other-${entry.bankSource.id}`, `Check money paid in — ${entry.bankSource.fileName}`,
+          `Tick the payers that are taxable income in Other income, then tick “I’ve checked all these payments”. Counted so far: £${entry.amount.toFixed(2)}.`,
           'Income')
       }
+    } else if (!entry.bankSource.verified || entry.amount === 0) {
+      action(`other-${entry.bankSource.id}`, `Confirm other income — ${entry.description || 'Bank receipt'}`,
+        `Recorded receipts are £${entry.bankSource.recordedAmount.toFixed(2)}. Confirm the purpose and enter only the taxable amount.`,
+        'Income')
     }
   })
 

@@ -8,6 +8,7 @@ import {
 } from '../engine/propertyImport'
 import { confirmBankRelief } from '../engine/bankImport'
 import { evidencedPropertyExpenses, labelledInterest, mortgagePayments } from '../engine/propertyExpenses'
+import { otherIncomePayers, rentReceiptOwners, setPayerTaxable, type OtherIncomePayer } from '../engine/otherIncome'
 import { openSource, parseSource } from '../engine/sourceViewer'
 import { useSourceFiles } from '../state/sourceFiles'
 import { FigureHelp } from './FigureHelp'
@@ -789,12 +790,87 @@ export function PensionSection({ items, m }: { items: PensionIncome[]; m: Mutato
   )
 }
 
-export function OtherIncomeSection({ items, m }: { items: OtherIncome[]; m: Mutators<OtherIncome> }) {
+function OtherBankReceipts({ entry, rentOwners, onChange, onRemove }: {
+  entry: OtherIncome; rentOwners: Map<string, string>
+  onChange: (patch: Partial<OtherIncome>) => void; onRemove: () => void
+}) {
+  const payers = otherIncomePayers(entry, rentOwners)
+  const regularPayers = payers.filter((payer) => payer.receipts.length > 1)
+  const oneOffPayers = payers.filter((payer) => payer.receipts.length === 1)
+  const row = (payer: OtherIncomePayer) => (
+    <div className={`suggestion-row${payer.regular ? ' rental-regular' : ''}`} key={payer.payer}>
+      <div>
+        <strong>{payer.label}</strong>
+        {payer.regular && (
+          <span className="evidence-badges">
+            <span className="evidence-badge evidence-badge-recognised">
+              Same amount, consecutive months: £{payer.regular.amount.toFixed(2)} × {payer.regular.months}
+            </span>
+          </span>
+        )}
+        <p className="hint">{payer.source} · Total: £{money(payer.total)}</p>
+        <details>
+          <summary>Review {payer.receipts.length} receipt{payer.receipts.length === 1 ? '' : 's'}</summary>
+          <ul>{payer.receipts.map((receipt) => (
+            <li key={receipt.id}>{receipt.date} — {receipt.description} — £{receipt.amount.toFixed(2)}
+              {rentOwners.has(receipt.id) && ` (counted as rent for ${rentOwners.get(receipt.id)})`}</li>
+          ))}</ul>
+        </details>
+      </div>
+      <div className="suggestion-values">
+        {payer.rentProperty && payer.receipts.every((receipt) => rentOwners.has(receipt.id))
+          ? <p className="hint">Already counted as rent for {payer.rentProperty}.</p>
+          : (
+            <label className="field checkbox">
+              <input type="checkbox" checked={payer.taxable}
+                onChange={(event) => onChange({ receipts: setPayerTaxable(entry, payer.payer, event.target.checked) })} />
+              <span>Taxable income</span>
+            </label>
+          )}
+      </div>
+    </div>
+  )
+  return (
+    <section className="other-receipts">
+      <div className="other-receipts-head">
+        <h3>Money paid in{entry.bankSource ? ` — ${entry.bankSource.fileName}` : ''}</h3>
+        <RemoveButton onClick={onRemove} />
+      </div>
+      <p className="hint">Payments into your account that we couldn’t identify, grouped by who paid. Tick only those
+        that are taxable income, such as freelance or casual work. Leave gifts, transfers between your own accounts,
+        refunds and loan repayments unticked.</p>
+      {regularPayers.map(row)}
+      {!!oneOffPayers.length && (
+        <details className="one-off-rental" open={oneOffPayers.some((payer) => payer.taxable) || !regularPayers.length}>
+          <summary>{oneOffPayers.length} one-off payment{oneOffPayers.length === 1 ? '' : 's'}</summary>
+          {oneOffPayers.map(row)}
+        </details>
+      )}
+      <p className="business-total">Counted as taxable: <strong>£{money(entry.amount)}</strong></p>
+      {entry.bankSource && (
+        <label className="field checkbox">
+          <input type="checkbox" checked={entry.bankSource.verified}
+            onChange={(event) => entry.bankSource && onChange({ bankSource: { ...entry.bankSource, verified: event.target.checked } })} />
+          <span>I’ve checked all these payments</span>
+        </label>
+      )}
+    </section>
+  )
+}
+
+export function OtherIncomeSection({ items, m, properties }: {
+  items: OtherIncome[]; m: Mutators<OtherIncome>; properties: PropertyLet[]
+}) {
+  const rentOwners = rentReceiptOwners(properties)
   return (
     <div className="card">
       <h2>Other income</h2>
-      <p className="hint">R185 trust income, JSA/taxable Universal Credit, chargeable event gains, etc.</p>
-      {items.map((o) => (
+      <p className="hint">Taxable income that doesn’t fit elsewhere, such as casual earnings, taxable benefits or trust income (R185).</p>
+      {items.filter((o) => o.receipts?.length).map((o) => (
+        <OtherBankReceipts key={o.id} entry={o} rentOwners={rentOwners}
+          onChange={(patch) => m.update(o.id, patch)} onRemove={() => m.remove(o.id)} />
+      ))}
+      {items.filter((o) => !o.receipts?.length).map((o) => (
         <div className="entry-row" key={o.id}>
           <TextField label="Description" value={o.description} onChange={(v) => m.update(o.id, { description: v })} />
           <NumField label="Amount (£)" value={o.amount} onChange={(v) => m.update(o.id, { amount: v })} />

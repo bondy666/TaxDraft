@@ -85,11 +85,23 @@ export interface PensionIncome {
   taxDeducted: number
 }
 
+export interface OtherIncomeReceipt {
+  id: string // the bank transaction id, so a receipt later matched as rent is not counted twice
+  payer: string // grouping key: the same payer across dates and references
+  date: string
+  description: string
+  amount: number
+  source: string
+  taxable: boolean
+}
+
 export interface OtherIncome {
   id: string
   description: string
   amount: number
   bankSource?: BankSource
+  /** Individual bank receipts; when present, amount is the total of those ticked as taxable. */
+  receipts?: OtherIncomeReceipt[]
 }
 
 export interface BankSource {

@@ -227,7 +227,7 @@ export default function App() {
             <SavingsSection items={tr.data.savings} m={tr.savings} />
             <DividendSection items={tr.data.dividends} m={tr.dividends} />
             <PensionSection items={tr.data.pensions} m={tr.pensions} />
-            <OtherIncomeSection items={tr.data.other} m={tr.other} />
+            <OtherIncomeSection items={tr.data.other} m={tr.other} properties={tr.data.properties} />
             <ReliefsSection reliefs={tr.data.reliefs} onChange={tr.updateReliefs}
               bankCandidates={tr.data.bankReliefCandidates} onConfirmBank={tr.confirmBankRelief} />
           </>

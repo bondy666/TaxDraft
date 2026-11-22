@@ -93,6 +93,9 @@ test('business status and invoice review survive spreadsheet export and import',
     ],
   }
   assert.deepEqual(importTaxWorkbook(createTaxWorkbook({ ...data, business }, computation, rates, flags)).business, business)
+  const receipts = [{ id: 'r1', payer: 'acme', date: '03/05/2025', description: 'ACME', amount: 500, source: 'bank.csv', taxable: true }]
+  const withReceipts = { ...data, other: [{ ...data.other[0], amount: 500, receipts }] }
+  assert.deepEqual(importTaxWorkbook(createTaxWorkbook(withReceipts, computation, rates, flags)).other, withReceipts.other)
   const old = createTaxWorkbook(data, computation, rates, flags)
   delete old.Sheets['Business settings']
   delete old.Sheets['Business invoices']

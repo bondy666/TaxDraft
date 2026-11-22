@@ -211,10 +211,13 @@ band (£56,867), the tax on non-savings income (£11,373.40 + £30,388.80) — m
   retained once; fully itemised distinct costs combine. Conflicting summary totals or ownership
   are flagged for reconciliation, never blindly added; the larger conflicting total is retained.
   Bank interest and dividends now populate their Income sections automatically, with the
-  matching dated payments and a verification checkbox. Unclassified incoming payments appear
-  in Other income with a recorded receipt total but taxable Amount initially zero. Confirm
-  their purpose and enter only the taxable amount; labelled salary, rent, transfers, mortgage
-  receipts, refunds and cashback are excluded from this candidate list.
+  matching dated payments and a verification checkbox. Unidentified money paid in appears in
+  Other income, grouped by payer like the rental-income suggestions (regular same-amount payers
+  first, one-offs collapsed), with each receipt listed. Nothing is counted until you tick
+  **Taxable income** for a payer; the amount is the total of ticked payers. Receipts already
+  matched as rent are never counted again here, and payers ticked as taxable drop out of the
+  rent suggestions. Labelled salary, rent, transfers, mortgage receipts, refunds and cashback
+  are excluded from this list.
   Bank pension payments and donations automatically appear as candidates in Pension
   contributions & Gift Aid, initially with zero relief claimed. Confirm relief-at-source
   or Gift Aid eligibility and apply a qualifying net amount there; bank labels alone do not

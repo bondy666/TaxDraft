@@ -2,7 +2,7 @@ import * as XLSX from '@e965/xlsx'
 import { TAX_YEARS } from '../data/taxYears.ts'
 import { validBusinessDate } from './business.ts'
 import type {
-  BankReliefCandidate, BankSource, DividendIncome, EmploymentIncome, OtherIncome, PersonalDetails,
+  BankReliefCandidate, BankSource, DividendIncome, EmploymentIncome, OtherIncome, OtherIncomeReceipt, PersonalDetails,
   PensionIncome, PropertyExpenseEvidence, PropertyLet, PropertyRentalIncomeEvidence, SavingsInterest,
   TaxReturnData, BusinessDetails, BusinessInvoice,
 } from '../types'
@@ -87,6 +87,25 @@ function stringArray(row: SheetRow, path: string): string[] | undefined {
   if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string')) {
     throw new Error(`"${label(path)}" must contain a valid JSON array of text.`)
   }
+  return parsed
+}
+
+function otherReceipts(row: SheetRow): OtherIncomeReceipt[] | undefined {
+  const raw = text(row, 'receipts')
+  if (!raw) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('"Receipts" in Other income must contain the list from the exported workbook.')
+  }
+  const valid = (item: unknown): item is OtherIncomeReceipt => {
+    const receipt = item as Record<string, unknown>
+    return !!receipt && typeof receipt === 'object' && ['id', 'payer', 'date', 'description', 'source']
+      .every((key) => typeof receipt[key] === 'string') && typeof receipt.taxable === 'boolean' &&
+      typeof receipt.amount === 'number' && Number.isFinite(receipt.amount) && receipt.amount >= 0
+  }
+  if (!Array.isArray(parsed) || !parsed.every(valid)) throw new Error('An Other income receipt is incomplete or invalid.')
   return parsed
 }
 
@@ -307,10 +326,14 @@ export function importTaxWorkbook(workbook: XLSX.WorkBook): TaxReturnData {
     id: id(row), source: text(row, 'source'), amount: number(row, 'amount', 0, 0),
     taxDeducted: number(row, 'taxDeducted', 0, 0),
   }))
-  const other: OtherIncome[] = list(workbook, 'Other income', (row) => ({
-    id: id(row), description: text(row, 'description'), amount: number(row, 'amount', 0, 0),
-    ...(text(row, 'bankSource.id') ? { bankSource: bankSource(row) } : {}),
-  }))
+  const other: OtherIncome[] = list(workbook, 'Other income', (row) => {
+    const receipts = otherReceipts(row)
+    return {
+      id: id(row), description: text(row, 'description'), amount: number(row, 'amount', 0, 0),
+      ...(text(row, 'bankSource.id') ? { bankSource: bankSource(row) } : {}),
+      ...(receipts ? { receipts } : {}),
+    }
+  })
 
   const reliefRows = list(workbook, 'Pension and Gift Aid', (row) => ({
     relief: text(row, 'relief'), netClaimed: number(row, 'netClaimed', 0, 0),

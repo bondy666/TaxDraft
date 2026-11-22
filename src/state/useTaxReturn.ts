@@ -12,6 +12,7 @@ import {
 import type { RentalIncomeCandidate } from '../engine/bankTransactions'
 import { DEFAULT_TAX_YEAR } from '../data/taxYears'
 import { syncInterestOnlyMortgage } from '../engine/propertyExpenses'
+import { syncOtherIncome } from '../engine/otherIncome'
 import {
   pushUndo, reinsertListItem, removalLabel, restoreField, restoreProperty, restoreSnapshot,
   type ListKey, type UndoEntry,
@@ -86,7 +87,8 @@ function round2(n: number) {
 
 function syncDerivedFigures(data: TaxReturnData): TaxReturnData {
   const properties = data.properties.map(syncInterestOnlyMortgage)
-  return properties.every((item, index) => item === data.properties[index]) ? data : { ...data, properties }
+  const synced = properties.every((item, index) => item === data.properties[index]) ? data : { ...data, properties }
+  return syncOtherIncome(synced)
 }
 
 export function useTaxReturn() {

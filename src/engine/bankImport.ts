@@ -16,11 +16,21 @@ export function importBankSuggestion(data: TaxReturnData, suggestion: DocumentSu
     ...data, bankReliefCandidates: data.bankReliefCandidates?.map((candidate) => candidate === group
       ? { ...candidate, source: { ...source, verified: false } } : candidate),
   }
+  // Older drafts stored unidentified receipts as text only; re-reading the file adds them as separate receipts.
+  const legacyOther = suggestion.kind === 'otherIncome' && suggestion.otherReceipts?.length
+    ? data.other.find((item) => item.bankSource?.id === source.id && !item.receipts?.length && item.amount === 0) : undefined
+  if (legacyOther) return {
+    ...data, other: data.other.map((item) => item === legacyOther
+      ? { ...item, description: `Money paid in: ${source.fileName}`, receipts: suggestion.otherReceipts } : item),
+  }
   if ([...data.savings, ...data.dividends, ...data.other].some((item) => item.bankSource?.id === source.id) ||
     data.bankReliefCandidates?.some((candidate) => candidate.source.id === source.id)) return data
   if (suggestion.kind === 'interest') return { ...data, savings: [...data.savings, { id, source: source.fileName, amount: source.recordedAmount, bankSource: source }] }
   if (suggestion.kind === 'dividend') return { ...data, dividends: [...data.dividends, { id, source: source.fileName, amount: source.recordedAmount, bankSource: source }] }
-  if (suggestion.kind === 'otherIncome') return { ...data, other: [...data.other, { id, description: `Unclassified receipts: ${source.fileName}`, amount: 0, bankSource: source }] }
+  if (suggestion.kind === 'otherIncome') return { ...data, other: [...data.other, {
+    id, description: `Money paid in: ${source.fileName}`, amount: 0, bankSource: source,
+    ...(suggestion.otherReceipts?.length ? { receipts: suggestion.otherReceipts } : {}),
+  }] }
   if (suggestion.kind === 'pensionContribution' || suggestion.kind === 'giftAid') return {
     ...data, bankReliefCandidates: [...data.bankReliefCandidates ?? [], { kind: suggestion.kind, source, claimedAmount: 0 }],
   }

@@ -114,8 +114,11 @@ export function DocumentFolder({
   const allRentalIncomeCandidates = useMemo(() => findRentalIncomeCandidates(bankTransactions), [bankTransactions])
   const recurringRentalIncomeIds = new Set(allRentalIncomeCandidates
     .filter((candidate) => candidate.payments.length >= 2).map((candidate) => candidate.id))
-  const reconciledRentalPaymentIds = new Set(properties.flatMap((item) =>
-    (item.rentalIncomeEvidence ?? []).map((evidence) => evidence.id)))
+  // Receipts already reconciled as rent, or ticked as other taxable income, are no longer rent suggestions.
+  const reconciledRentalPaymentIds = new Set([
+    ...properties.flatMap((item) => (item.rentalIncomeEvidence ?? []).map((evidence) => evidence.id)),
+    ...returnData.other.flatMap((item) => (item.receipts ?? []).filter((receipt) => receipt.taxable).map((receipt) => receipt.id)),
+  ])
   const rentalIncomeCandidates = allRentalIncomeCandidates.map((candidate) => {
     const payments = candidate.payments.filter((payment) => !reconciledRentalPaymentIds.has(payment.id))
     return {
@@ -270,7 +273,7 @@ export function DocumentFolder({
         // Clearly named properties are created straight away so later documents can be matched to them.
         createProperties(resolvePropertyNames(mentions.filter((mention) => mention.typed), knownNames()), file.name)
         setSuggestions((current) => [...current, ...analysis.suggestions.filter((suggestion) => !suggestion.p60SourceId && !suggestion.propertySourceId && !suggestion.bankSource)])
-        if (automatic.some((suggestion) => suggestion.bankSource)) nextWarnings.push(`${file.name}: Bank interest/dividends and review candidates populated in Income (or already present). Confirm unclassified receipts and qualifying pension/Gift Aid payments there; avoid overlapping bank exports.`)
+        if (automatic.some((suggestion) => suggestion.bankSource)) nextWarnings.push(`${file.name}: bank payments to check have been added to Income (interest, unidentified money paid in, and any pension or charity payments).`)
         if (automatic.some((suggestion) => suggestion.p60SourceId)) nextWarnings.push(`${file.name}: P60 figures populated in Income (or already present). Verify them there before relying on the computation.`)
         if (!/\.docx$/i.test(file.name) && automatic.some((suggestion) => suggestion.propertySourceId)) nextWarnings.push(`${file.name}: Property figures and bank evidence populated in Income (or already present). Allocate bank receipts/mortgages to the appropriate property and verify costs there.`)
         nextWarnings.push(...analysis.warnings)
@@ -465,14 +468,8 @@ export function DocumentFolder({
         <div className="folder-start-copy">
           <p className="step-label">START HERE <span>01</span></p>
           <h3 id="folder-start-heading">Choose your tax-year folder</h3>
-          <p>
-            Select the folder containing your tax records. We’ll review supported documents and prepare figures
-            for your draft return.
-          </p>
-          <p className="folder-privacy">
-            Files are analysed locally in this browser; their contents are not uploaded or saved. Scanned files may
-            download OCR assets from a CDN, but the file contents remain on your device.
-          </p>
+          <p>Choose the folder with your tax documents and bank statements. We’ll read them and fill in what we can.</p>
+          <p className="folder-privacy">Your files stay on this device. They are read in your browser and never uploaded.</p>
         </div>
         <div className="document-actions folder-actions">
           <label className="document-file-label folder-primary-btn">
@@ -520,42 +517,35 @@ export function DocumentFolder({
             />
           </label>
         </div>
-        <p className="folder-guidance">
-          Read-only access is enough. For OneDrive, choose the locally synced folder and make sure files are available
-          on this device. Files need to be selected again after a page reload. You can change the tax year above;
-          selecting a different year reanalyses the chosen files.
-        </p>
+        <details className="folder-guidance">
+          <summary>Tips for choosing files</summary>
+          <p>Subfolders are included. For OneDrive, choose the synced folder and make sure the files are available
+            offline. After reloading the page you’ll need to choose the files again; anything already added to your
+            return is kept. Reading scanned documents downloads a text-recognition tool, but your files stay on this device.</p>
+        </details>
         {selectionStatus && <p className="hint folder-status" role="status">{selectionStatus}</p>}
         {error && <p className="hint error folder-status" role="alert">{error}</p>}
         {files.length > 0 && (
           <p className="hint folder-status">
             {files.length} file{files.length === 1 ? '' : 's'} selected{folderName ? ` from ${folderName}` : ''}.
-            {' '}Bank CSV/XLSX/XLSM transactions are filtered to {taxYearId} when dates are present.
+            {' '}Bank transactions outside {taxYearId} are ignored.
           </p>
         )}
         {progress && <p className="hint folder-status" role="status">{progress}</p>}
       </section>
       <DocumentChecklistPanel checklist={checklist} filesChosen={files.length > 0} onOpenIncome={onOpenIncome} />
       {!companyMode && (<>
+      {(rentalIncomeCandidates.length > 0 || rentalStatus ||
+        (!files.length && properties.some((item) => item.name.startsWith('Unallocated') && item.rentalIncome > 0))) && (
       <section className="suggestion-review" aria-label="Rental income suggestions">
-        <h3>Potential rental income sources</h3>
+        <p className="step-label">REVIEW</p>
+        <h3>Could any of this be rent?</h3>
         <p className="hint">
-          Rent/property-labelled receipts and otherwise unclassified incoming payments are grouped by payer, ignoring
-          dates and long reference numbers. This can reveal rent paid under another tenant’s name. Review each receipt
-          and only reconcile the sources that are actually rent; multiple sources can match the same property. Payers
-          paying the same amount in consecutive months are highlighted and listed first. One-off payments are collapsed
-          below and can still be reconciled if one of them is rent.
+          Money paid into your account that might be rent, grouped by who paid it. Regular payers come first.
+          Match a payer to a property only if it really is rent.
         </p>
-        {!rentalIncomeCandidates.length && !files.length && (
-          <p className="charity-empty">
-            Select a bank export to find dated incoming rent receipts.
-          </p>
-        )}
-        {!rentalIncomeCandidates.length && !!files.length && progress.startsWith('Analysis complete') && (
-          <p className="charity-empty">No dated rent-labelled or unclassified incoming payments were found for {taxYearId}.</p>
-        )}
         {!recurringRentalIncomeCandidates.length && !!oneOffRentalIncomeCandidates.length && (
-          <p className="charity-empty">No payer has more than one payment in {taxYearId}. One-off payments are listed below if needed.</p>
+          <p className="charity-empty">No payer paid more than once in {taxYearId}.</p>
         )}
         {recurringRentalIncomeCandidates.map(renderRentalCandidate)}
         {!!oneOffRentalIncomeCandidates.length && (
@@ -563,52 +553,37 @@ export function DocumentFolder({
             onToggle={(event) => setShowOneOffRentalCandidates(event.currentTarget.open)}>
             <summary>
               {oneOffRentalIncomeCandidates.length} one-off payment{oneOffRentalIncomeCandidates.length === 1 ? '' : 's'}
-              {' '}? expand only if one of these could be rent
+              {' '}— open only if one of these could be rent
             </summary>
             {showOneOffRentalCandidates && oneOffRentalIncomeCandidates.map(renderRentalCandidate)}
           </details>
         )}
         {!files.length && properties.some((item) => item.name.startsWith('Unallocated') && item.rentalIncome > 0) && (
           <p className="hint">
-            Previously imported unallocated rental totals are still pending. Reselect their source workbooks to replace
-            each aggregate with separate payer/source suggestions; unmatched amounts are excluded from the tax calculation.
+            Some rent from an earlier import hasn’t been matched to a property yet, so it isn’t counted. Choose the
+            same bank files again to match it payer by payer.
           </p>
         )}
         {rentalStatus && <p className="hint" role="status">{rentalStatus}</p>}
       </section>
+      )}
+      {bankTransactions.length > 0 && (
       <section className="suggestion-review charity-review" aria-label="Charity suggestions">
         <div className="review-heading">
           <div>
-            <p className="step-label">REVIEW <span>03</span></p>
-            <h3>Charity &amp; Gift Aid suggestions</h3>
+            <p className="step-label">REVIEW</p>
+            <h3>Charity donations</h3>
           </div>
           {charityCandidates.length > 0 && (
             <span className="candidate-count">{charityCandidates.length} possible recipient{charityCandidates.length === 1 ? '' : 's'}</span>
           )}
         </div>
         <p className="hint">
-          Recognised or explicitly labelled charity recipients start selected for review. Payees receiving the same round
-          amount (under £100) every month for at least three consecutive months are marked as likely donations and also
-          start selected. Other regular payees, such as companies, fees or varying amounts, appear as unchecked leads.
-          Check every payment: regularity does not prove a payee is charitable, and no relief is claimed automatically.
+          Payments that look like charity donations. Tick the ones that are, then press <strong>Use selected</strong>.
+          Gift Aid is only claimed after you confirm it in Income.
         </p>
-        {!files.length && (
-          <p className="charity-empty">
-            Choose a folder above to begin. Charity suggestions appear here when a bank CSV/XLSX/XLSM with readable
-            transaction dates, descriptions and amounts is found.
-          </p>
-        )}
-        {!!files.length && !bankTransactions.length && (
-          <p className="charity-empty" role="status">
-            {progress && !progress.startsWith('Analysis complete')
-              ? 'Checking selected documents for bank transactions…'
-              : 'No readable bank transactions found yet. Check the selected tax year above; transactions outside that year are filtered out. Bank exports need dates, descriptions and amounts in a CSV/XLSX/XLSM file.'}
-          </p>
-        )}
-        {!!bankTransactions.length && !charityCandidates.length && (
-          <p className="charity-empty">
-            No likely charity recipients found in the readable transactions. You can add a missed recipient below.
-          </p>
+        {!charityCandidates.length && (
+          <p className="charity-empty">No likely charity payments found. If we missed one, add it below.</p>
         )}
         {!!charityCandidates.length && (
           <>
@@ -619,10 +594,10 @@ export function DocumentFolder({
                 setCharitySelections(Object.fromEntries(charityCandidates.map((candidate) => [candidate.id, false])))}>Clear selection</button>
             </div>
             <div className="expense-table-scroll"><table className="expense-table">
-              <thead><tr><th>Review</th><th>Recipient / reason</th><th>Payments</th><th>Total paid</th><th>Evidence</th></tr></thead>
+              <thead><tr><th>Use</th><th>Recipient</th><th>Payments</th><th>Total paid</th><th>Details</th></tr></thead>
               <tbody>{charityCandidates.map((candidate) => (
                 <tr key={candidate.id}>
-                  <td><input type="checkbox" aria-label={`Evaluate ${candidate.recipient}`}
+                  <td><input type="checkbox" aria-label={`Use ${candidate.recipient}`}
                     checked={isCharityCandidateSelected(candidate)}
                     onChange={(event) => setCharitySelections((current) => ({ ...current, [candidate.id]: event.target.checked }))} /></td>
                   <td><strong>{candidate.recipient}</strong>
@@ -647,80 +622,75 @@ export function DocumentFolder({
               const added = selected.map((candidate) => candidate.recipient).filter((recipient) =>
                 !matchesBankRecipient(recipient, donationRecipients ?? []))
               if (added.length) onDonationRecipientsChange([...donationRecipients ?? [], ...added])
-              setCharityEvaluationStatus(`${selected.length} selected recipient(s) evaluated for donation matching. Check the payments and confirm qualifying Gift Aid in Income; no relief is claimed by this selection.`)
-            }}>Evaluate selected recipients</button>
+              setCharityEvaluationStatus(`${selected.length} recipient${selected.length === 1 ? '' : 's'} added. Their payments now appear under Gift Aid in Income, ready for you to confirm.`)
+            }}>Use selected</button>
           </>
         )}
         {charityEvaluationStatus && <p className="hint" role="status">{charityEvaluationStatus}</p>}
       </section>
-      <section className="pension-recipient-settings" aria-label="Private pension payment recipients">
-        <h3>Do you pay into a private pension?</h3>
-        <p className="hint">
-          Add the recipient exactly as it appears in your bank payment description (for example, the provider name).
-          Matching outgoing payments will automatically populate pension contribution candidates in Income.
-          This does not prove relief-at-source eligibility. Settings are saved with this return.
-        </p>
-        <label className="field">
-          <span>Private pension recipient shown on bank statement</span>
-          <input value={recipientInput} onChange={(event) => { setRecipientInput(event.target.value); setRecipientError('') }} />
-        </label>
-        <button type="button" className="ghost-btn" onClick={() => {
-          const recipient = recipientInput.trim()
-          if (recipient.replace(/[^a-z0-9]/gi, '').length < 3) {
-            setRecipientError('Enter a specific recipient name of at least three letters/numbers, not a generic payment label.')
-            return
-          }
-          if (pensionRecipients?.some((name) => name.toLowerCase() === recipient.toLowerCase())) {
-            setRecipientError('This recipient is already configured.')
-            return
-          }
-          onPensionRecipientsChange([...pensionRecipients ?? [], recipient])
-          setRecipientInput('')
-        }}>Add pension recipient and reanalyse</button>
-        {recipientError && <p className="hint error" role="alert">{recipientError}</p>}
-        {!!pensionRecipients?.length && (
-          <ul>{pensionRecipients.map((recipient) => (
-            <li key={recipient}>{recipient} <button type="button" className="ghost-btn" onClick={() =>
-              onPensionRecipientsChange(pensionRecipients.filter((name) => name !== recipient))}>Remove recipient</button></li>
-          ))}</ul>
-        )}
-        <p className="hint">Removing a recipient stops future matching. Previously populated candidates and claims are not deleted; review or exclude them in Income.</p>
-      </section>
-      <section aria-label="Charitable donation recipients">
-        <h3>Charitable donations &amp; Gift Aid</h3>
-        <p className="hint">
-          Donation labels and recognised charity names automatically populate Gift Aid review in Income.
-          If a charity is missed, add its recipient name as shown on the bank statement to reanalyse selected files.
-          Purchases, lottery entries and memberships are not treated as donations. Confirm Gift Aid eligibility
-          and a valid declaration in Income before applying relief.
-        </p>
-        <label className="field">
-          <span>Charity recipient shown on bank statement</span>
-          <input value={donationRecipientInput} onChange={(event) => { setDonationRecipientInput(event.target.value); setDonationRecipientError('') }} />
-        </label>
-        <button type="button" className="ghost-btn" onClick={() => {
-          const recipient = donationRecipientInput.trim()
-          if (recipient.replace(/[^a-z0-9]/gi, '').length < 3) {
-            setDonationRecipientError('Enter a specific charity recipient name of at least three letters/numbers, not a generic payment label.')
-            return
-          }
-          if (donationRecipients?.some((name) => name.toLowerCase() === recipient.toLowerCase())) {
-            setDonationRecipientError('This recipient is already configured.')
-            return
-          }
-          onDonationRecipientsChange([...donationRecipients ?? [], recipient])
-          setDonationRecipientInput('')
-        }}>Add charity recipient and reanalyse</button>
-        {donationRecipientError && <p className="hint error" role="alert">{donationRecipientError}</p>}
-        {!!donationRecipients?.length && (
-          <ul>{donationRecipients.map((recipient) => (
-            <li key={recipient}>{recipient} <button type="button" className="ghost-btn" onClick={() =>
-              onDonationRecipientsChange(donationRecipients.filter((name) => name !== recipient))}>Remove charity recipient</button></li>
-          ))}</ul>
-        )}
-        <p className="hint">Names are saved with this return. Removing a name stops future matching; review or exclude previously populated donations in Income.</p>
-      </section>
-      </>)}
+      )}
+      <details className="recipient-settings">
+        <summary>
+          Missed a pension or charity payment?
+          {(pensionRecipients?.length ?? 0) + (donationRecipients?.length ?? 0) > 0 &&
+            ` (${(pensionRecipients?.length ?? 0) + (donationRecipients?.length ?? 0)} added)`}
+        </summary>
+        <p className="hint">Type the name exactly as it appears on your bank statement. We’ll look for it again in your
+          chosen files and add matching payments to Income for you to confirm.</p>
+        <section className="pension-recipient-settings" aria-label="Private pension payment recipients">
+          <label className="field">
+            <span>Pension provider you pay into yourself</span>
+            <input value={recipientInput} onChange={(event) => { setRecipientInput(event.target.value); setRecipientError('') }} />
+          </label>
+          <button type="button" className="ghost-btn" onClick={() => {
+            const recipient = recipientInput.trim()
+            if (recipient.replace(/[^a-z0-9]/gi, '').length < 3) {
+              setRecipientError('Enter at least three letters or numbers from the provider’s name.')
+              return
+            }
+            if (pensionRecipients?.some((name) => name.toLowerCase() === recipient.toLowerCase())) {
+              setRecipientError('This name has already been added.')
+              return
+            }
+            onPensionRecipientsChange([...pensionRecipients ?? [], recipient])
+            setRecipientInput('')
+          }}>Add pension provider</button>
+          {recipientError && <p className="hint error" role="alert">{recipientError}</p>}
+          {!!pensionRecipients?.length && (
+            <ul>{pensionRecipients.map((recipient) => (
+              <li key={recipient}>{recipient} <button type="button" className="ghost-btn" onClick={() =>
+                onPensionRecipientsChange(pensionRecipients.filter((name) => name !== recipient))}>Remove</button></li>
+            ))}</ul>
+          )}
+        </section>
+        <section aria-label="Charitable donation recipients">
+          <label className="field">
+            <span>Charity you gave to</span>
+            <input value={donationRecipientInput} onChange={(event) => { setDonationRecipientInput(event.target.value); setDonationRecipientError('') }} />
+          </label>
+          <button type="button" className="ghost-btn" onClick={() => {
+            const recipient = donationRecipientInput.trim()
+            if (recipient.replace(/[^a-z0-9]/gi, '').length < 3) {
+              setDonationRecipientError('Enter at least three letters or numbers from the charity’s name.')
+              return
+            }
+            if (donationRecipients?.some((name) => name.toLowerCase() === recipient.toLowerCase())) {
+              setDonationRecipientError('This name has already been added.')
+              return
+            }
+            onDonationRecipientsChange([...donationRecipients ?? [], recipient])
+            setDonationRecipientInput('')
+          }}>Add charity</button>
+          {donationRecipientError && <p className="hint error" role="alert">{donationRecipientError}</p>}
+          {!!donationRecipients?.length && (
+            <ul>{donationRecipients.map((recipient) => (
+              <li key={recipient}>{recipient} <button type="button" className="ghost-btn" onClick={() =>
+                onDonationRecipientsChange(donationRecipients.filter((name) => name !== recipient))}>Remove</button></li>
+            ))}</ul>
+          )}
+        </section>
+        <p className="hint">Removing a name stops future matching. Anything already added to Income stays there for you to review.</p>
+      </details>      </>)}
       {warnings.length > 0 && (
         <ul className="document-warnings">
           {warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}
@@ -729,10 +699,10 @@ export function DocumentFolder({
 
       {!companyMode && suggestions.length > 0 && (
         <section className="suggestion-review" aria-label="Extracted tax suggestions">
-          <h3>Review extracted figures</h3>
+          <h3>Check figures we read from your documents</h3>
           <p className="hint">
-            Suggestions start unchecked. Select only figures you have verified. Importing appends them to the Income tab.
-            Avoid importing the same income or contribution from both a bank statement and an annual certificate.
+            Tick the figures that match your documents, then press <strong>Add selected to my return</strong>. Don’t add
+            the same income twice, for example from both a bank statement and a certificate.
           </p>
           {EVIDENCE_TIERS.map((tier) => {
             const group = suggestions.filter((suggestion) => evidenceTier(suggestion) === tier.id)
@@ -834,7 +804,7 @@ export function DocumentFolder({
             )
           })}
           <button type="button" className="add-btn" onClick={importSelected}>
-            Import selected suggestions
+            Add selected to my return
           </button>
         </section>
       )}

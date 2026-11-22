@@ -15,7 +15,7 @@ test('a fixed round monthly amount to a non-commercial payee is a likely donatio
   assert.equal(candidate.confidence, 'likely')
   assert.equal(candidate.total, 60)
   assert.equal(candidate.payments.length, 3)
-  assert.match(candidate.reason, /same £20\.00 was paid every month/)
+  assert.match(candidate.reason, /same £20\.00 every month/)
 })
 
 test('companies, fees, varying or non-round monthly amounts remain unchecked review leads', () => {
@@ -99,7 +99,7 @@ test('identical source rows do not inflate totals; custom charities remain revie
   assert.equal(candidate.confidence, 'identified')
   const configured = findCharityCandidates([payment('Community Help', 5)], [], ['Community Help'])
   assert.equal(configured.length, 1)
-  assert.match(configured[0].reason, /Recognised/)
+  assert.match(configured[0].reason, /recognised charity/)
 })
 
 test('explicit charity names and labels are still suggested without recurring', () => {

@@ -62,12 +62,14 @@ export function payerKey(description: string): string {
   return key || description.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-function sameAmountConsecutiveMonths(payments: SourcedBankTransaction[]): RentalIncomeCandidate['regular'] {
+/** Longest run of the same amount in consecutive calendar months (2 or more), e.g. rent or a regular client. */
+export function regularMonthlyAmount(payments: { date: Date | null; amount: number }[]): RentalIncomeCandidate['regular'] {
   const monthsByAmount = new Map<number, Set<number>>()
   for (const payment of payments) {
+    if (!payment.date) continue
     const pence = Math.round(payment.amount * 100)
     const months = monthsByAmount.get(pence) ?? new Set<number>()
-    months.add(payment.date!.getFullYear() * 12 + payment.date!.getMonth())
+    months.add(payment.date.getFullYear() * 12 + payment.date.getMonth())
     monthsByAmount.set(pence, months)
   }
   let best: RentalIncomeCandidate['regular']
@@ -122,7 +124,7 @@ export function findRentalIncomeCandidates(transactions: SourcedBankTransaction[
   }
   return [...groups.values()].map((candidate) => {
     const payments = candidate.payments.sort((a, b) => a.date!.getTime() - b.date!.getTime())
-    const regular = sameAmountConsecutiveMonths(payments)
+    const regular = regularMonthlyAmount(payments)
     return { ...candidate, payments, ...(regular ? { regular } : {}) }
   }).sort((a, b) => a.description.localeCompare(b.description))
 }
@@ -201,10 +203,10 @@ export function findCharityCandidates(transactions: SourcedBankTransaction[], pe
       confidence: recognised ? 'identified' : likely ? 'likely' : 'monthlyReview',
       total: Math.round(candidatePayments.reduce((sum, payment) => sum - payment.amount, 0) * 100) / 100,
       reason: recognised
-        ? 'Recognised charity name or explicit charity/donation/Gift Aid label; verify the recipient and eligibility.'
+        ? 'A recognised charity, or labelled as a donation. Check you can claim Gift Aid.'
         : likely
-          ? `The same £${Math.abs(candidatePayments[0].amount).toFixed(2)} was paid every month for ${candidatePayments.length} consecutive months, like a charity direct debit. Likely a donation; confirm the recipient is a registered charity before claiming Gift Aid.`
-          : 'Unidentified payee with payments under £100 in at least three consecutive months. This is only a review lead, not evidence that the recipient is a charity.',
+          ? `The same £${Math.abs(candidatePayments[0].amount).toFixed(2)} every month for ${candidatePayments.length} months, like a charity direct debit. Check it is a registered charity.`
+          : 'Regular payments under £100. This may not be a charity; tick it only if it is.',
     })
   }
   return candidates.sort((a, b) => a.recipient.localeCompare(b.recipient))

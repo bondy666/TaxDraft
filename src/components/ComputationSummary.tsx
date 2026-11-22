@@ -77,7 +77,8 @@ export function ComputationSummary({ result, rates, data }: {
   }))
   const otherParts = data.other.map((item) => ({
     label: item.description || 'Other income', amount: item.amount,
-    detail: 'Amount entered in Other income.', evidence: item.bankSource?.evidence,
+    detail: item.receipts?.length ? 'Total of the payers ticked as taxable in Other income.' : 'Amount entered in Other income.',
+    evidence: item.receipts?.length ? undefined : item.bankSource?.evidence,
   }))
   const trading = soleTraderTotals(data.business, data.taxYearId)
   const tradingParts = data.business && ['soleTrader', 'both'].includes(data.business.status) ? [{

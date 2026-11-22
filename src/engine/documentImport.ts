@@ -1,8 +1,9 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { parseWeeklyPayslip, type PayslipFigures } from './payslip'
 import { extractPersonalEvidence } from './personalEvidence'
-import type { BankSource, PersonalDetails, PropertyLet } from '../types'
+import type { BankSource, OtherIncomeReceipt, PersonalDetails, PropertyLet } from '../types'
 import { classifyBankTransaction, findCharityCandidates, type SourcedBankTransaction } from './bankTransactions'
+import { toOtherIncomeReceipt } from './otherIncome'
 import { extractP60 } from './p60'
 import { isInTaxYear, parseDate, parseMoney } from './documentValues'
 import { extractPropertySpreadsheet } from './propertySpreadsheet'
@@ -54,6 +55,8 @@ export interface DocumentSuggestion {
   bankEvidence?: PropertyLet['bankEvidence']
   expenseEvidence?: PropertyLet['expenseEvidence']
   bankSource?: BankSource
+  /** Individual unidentified receipts, for review payer by payer in Other income. */
+  otherReceipts?: OtherIncomeReceipt[]
   ocr?: boolean
   sourceExcerpt?: string
 }
@@ -217,12 +220,12 @@ function statementTextTransactions(text: string, taxYearId: string): Transaction
 
 function suggestionsFromTransactions(
   file: File,
-  transactions: Transaction[],
+  transactions: SourcedBankTransaction[],
   taxYearId: string,
   pensionRecipients: string[],
   donationRecipients: string[],
 ): DocumentSuggestion[] {
-  const grouped: Record<'interest' | 'dividend' | 'pensionContribution' | 'giftAid' | 'otherIncome', Transaction[]> = {
+  const grouped: Record<'interest' | 'dividend' | 'pensionContribution' | 'giftAid' | 'otherIncome', SourcedBankTransaction[]> = {
     interest: [],
     dividend: [],
     pensionContribution: [],
@@ -241,7 +244,7 @@ function suggestionsFromTransactions(
   }
 
   const suggestions: DocumentSuggestion[] = []
-  for (const [kind, matches] of Object.entries(grouped) as [keyof typeof grouped, Transaction[]][]) {
+  for (const [kind, matches] of Object.entries(grouped) as [keyof typeof grouped, SourcedBankTransaction[]][]) {
     if (!matches.length) continue
     const amount = Math.round(matches.reduce((sum, item) => sum + Math.abs(item.amount), 0) * 100) / 100
     const descriptions = matches.map((item) =>
@@ -258,7 +261,8 @@ function suggestionsFromTransactions(
       giftAid: 'Possible charitable donations (Gift Aid unconfirmed)',
       otherIncome: 'Unclassified bank receipts (taxability unconfirmed)',
     }
-    suggestions.push(makeSuggestion(file, kind, titles[kind], detail, { amount }, 'low'))
+    const suggestion = makeSuggestion(file, kind, titles[kind], detail, { amount }, 'low')
+    suggestions.push(kind === 'otherIncome' ? { ...suggestion, otherReceipts: matches.map(toOtherIncomeReceipt) } : suggestion)
   }
   return suggestions
 }
@@ -547,11 +551,14 @@ async function analyzeSpreadsheetSheets(file: File, sheets: { name: string; rows
     if (!supplierLedger) {
       const transactions = spreadsheetTransactions(sheet.rows, taxYearId)
       bankTransactionsFound = transactions.length > 0
-      bankTransactions.push(...transactions.map((transaction, index) => ({
-        ...transaction, id: `${source}:${sheet.name}:${index}`, source: `${file.name} / ${sheet.name}`,
+      // A CSV has one "sheet" named after the file; don't repeat the name.
+      const label = sheet.name === file.name ? file.name : `${file.name} / ${sheet.name}`
+      const sourced = transactions.map((transaction, index) => ({
+        ...transaction, id: `${source}:${sheet.name}:${index}`, source: label,
         sourceKey: `${source}:${sheet.name}`,
-      })))
-      suggestions.push(...await addBankSources(file, suggestionsFromTransactions(file, transactions, taxYearId, pensionRecipients, donationRecipients), taxYearId, `${source}:${sheet.name}`))
+      }))
+      bankTransactions.push(...sourced)
+      suggestions.push(...await addBankSources(file, suggestionsFromTransactions(file, sourced, taxYearId, pensionRecipients, donationRecipients), taxYearId, `${source}:${sheet.name}`))
     }
     const property = extractPropertySpreadsheet(sheet.rows, sheet.name, taxYearId)
     warnings.push(...property.warnings.map((warning) => `${file.name}: ${warning}`))
@@ -720,7 +727,11 @@ export async function analyzeDocument(file: File, taxYearId: string, pensionReci
         })
       }
     }
-    const statementTransactions = statementTextTransactions(text, taxYearId)
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    const source = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    const statementTransactions = statementTextTransactions(text, taxYearId).map((transaction, index) => ({
+      ...transaction, id: `${source}:PDF:${index}`, source: file.name, sourceKey: `${source}:PDF`,
+    }))
     const statementSuggestions = await addBankSources(file, suggestionsFromTransactions(file, statementTransactions, taxYearId, pensionRecipients, donationRecipients), taxYearId, 'PDF transactions')
     for (const suggestion of statementSuggestions) {
       suggestions = suggestions.filter((existing) => existing.kind !== suggestion.kind)
@@ -750,11 +761,7 @@ export async function analyzeDocument(file: File, taxYearId: string, pensionReci
         suggestion.allowableExpenses, suggestion.mortgageInterest, suggestion.benefitsInKind,
       ]),
     }))
-    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
-    const source = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
-    return { suggestions, warnings, propertyMentions: findPropertyMentions(text), bankTransactions: statementTransactions.map((transaction, index) => ({
-      ...transaction, id: `${source}:PDF:${index}`, source: file.name, sourceKey: `${source}:PDF`,
-    })) }
+    return { suggestions, warnings, propertyMentions: findPropertyMentions(text), bankTransactions: statementTransactions }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return { suggestions: [], warnings: [`${file.name}: could not be analyzed — ${message}`] }

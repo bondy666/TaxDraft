@@ -840,6 +840,28 @@ body {
 .business-notes summary { cursor: pointer; color: var(--stamp); }
 .business-notes ul { margin: 8px 0 0; padding-left: 18px; }
 
+.recipient-settings {
+  margin: 20px 0;
+  padding: 14px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.recipient-settings > summary { cursor: pointer; font-weight: 600; color: var(--stamp); }
+.recipient-settings > p.hint { margin-top: 10px; }
+.recipient-settings section { margin-top: 12px; }
+details.folder-guidance > summary { cursor: pointer; color: var(--stamp); }
+details.folder-guidance > p { margin: 8px 0 0; }
+
+.other-receipts {
+  margin: 0 0 20px;
+  padding: 18px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: rgba(238, 240, 234, 0.54);
+}
+.other-receipts-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.other-receipts-head h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+
 .document-actions {
   display: flex;
   flex-wrap: wrap;
