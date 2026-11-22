@@ -89,7 +89,7 @@ test('business status and invoice review survive spreadsheet export and import',
     status: 'both', taxMode: 'company', soleTraderBasis: 'traditional', companyStart: '2025-04-01', companyEnd: '2026-03-31',
     companySimpleCase: true, invoices: [
       { id: 'one', business: 'soleTrader', kind: 'income', source: 'invoice.pdf', sourceHash: 'abc', date: '2025-06-01', amount: 1200, confirmed: true },
-      { id: 'two', business: 'company', kind: 'expense', source: 'Manual entry', date: '', amount: 0, confirmed: false },
+      { id: 'two', business: 'company', kind: 'expense', source: 'Manual entry', date: '', amount: 50, confirmed: false },
     ],
   }
   assert.deepEqual(importTaxWorkbook(createTaxWorkbook({ ...data, business }, computation, rates, flags)).business, business)
@@ -154,6 +154,31 @@ test('no-document and wrong-year snapshots are explicitly omitted, with empty se
   assert.deepEqual(rows(workbook, 'Likely charities'), [])
   assert.equal(workbook.Sheets.Employment.A1.v, 'Employer')
   assert.match(rows(workbook, 'Read me').find((row) => row.Item === 'Documents').Value, /No current document analysis/)
+})
+
+test('rows whose money figures are all zero are left out, but entries awaiting review are kept for import', () => {
+  const withZeros = {
+    ...data,
+    employments: [...data.employments, { id: 'blank-job', employer: 'Placeholder', p60Pay: 0, benefitsInKind: 0, taxDeducted: 0 }],
+    savings: [...data.savings, { id: 'blank-interest', source: 'Old account', amount: 0 }],
+    properties: [{
+      ...data.properties[0],
+      expenseEvidence: [...data.properties[0].expenseEvidence, { ...expense, id: 'zero-cost', amount: 0, allowableAmount: 0 }],
+      bankEvidence: [...data.properties[0].bankEvidence, { label: 'Nothing', incoming: 0, outgoing: 0, kind: 'mortgage' }],
+    }],
+  }
+  const workbook = createTaxWorkbook(withZeros, { ...computation, personalAllowanceTaper: 0 }, rates, flags, documents)
+  assert.deepEqual(rows(workbook, 'Employment').map((row) => row.Employer), ['Example employer'])
+  assert.deepEqual(rows(workbook, 'Savings interest').map((row) => row.Source), ['Bank'])
+  assert.ok(!rows(workbook, 'Property expenses').some((row) => row.Amount === 0))
+  assert.deepEqual(rows(workbook, 'Property bank references').map((row) => row.Label), ['Mortgage'])
+  assert.ok(!rows(workbook, 'Computation').some((row) => row.Item === 'Personal Allowance Taper'))
+  // Other income awaiting review (amount 0) and the Pension and Gift Aid totals are still exported.
+  assert.equal(rows(workbook, 'Other income').length, 1)
+  assert.equal(rows(workbook, 'Pension and Gift Aid').length, 2)
+  const imported = importTaxWorkbook(workbook)
+  assert.deepEqual(imported.other, data.other)
+  assert.equal(imported.properties[0].expenseEvidence.length, 2)
 })
 
 test('invalid non-finite numeric input fails explicitly rather than producing a misleading export', () => {
