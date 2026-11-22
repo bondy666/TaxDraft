@@ -62,6 +62,32 @@ export function payerKey(description: string): string {
   return key || description.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
+// Words that say nothing about who paid: payment types, "rent", titles, company suffixes and months.
+const GENERIC_NAME_WORDS = new Set([
+  'rent', 'rental', 'rents', 'payment', 'payments', 'pmt', 'receipt', 'receipts', 'received', 'faster', 'fp', 'fpi',
+  'bgc', 'bacs', 'credit', 'cr', 'bank', 'giro', 'so', 'standing', 'order', 'ref', 'reference', 'from', 'to', 'for',
+  'the', 'and', 'of', 'mr', 'mrs', 'ms', 'miss', 'dr', 'ltd', 'limited', 'plc', 'monthly', 'month',
+  'jan', 'january', 'feb', 'february', 'mar', 'march', 'apr', 'april', 'may', 'jun', 'june', 'jul', 'july',
+  'aug', 'august', 'sep', 'sept', 'september', 'oct', 'october', 'nov', 'november', 'dec', 'december',
+])
+
+/**
+ * The first two meaningful words of a payer's name ("gateway mayfair", "flat 4"), so the same payer written in
+ * different ways can be offered together. Empty when the name is too vague to compare.
+ */
+export function similarNameKey(description: string): string {
+  const words = payerKey(description).replace(/([a-z])(\d)/g, '$1 $2').replace(/(\d)([a-z])/g, '$1 $2')
+    .split(' ').filter((word) => word && !GENERIC_NAME_WORDS.has(word))
+  const key = words.slice(0, 2).join(' ')
+  return words.length >= 2 || key.length >= 4 ? key : ''
+}
+
+export function findSimilarRentalCandidates<T extends RentalIncomeCandidate>(candidate: RentalIncomeCandidate, candidates: T[]): T[] {
+  const key = similarNameKey(candidate.description)
+  if (!key) return []
+  return candidates.filter((other) => other.id !== candidate.id && similarNameKey(other.description) === key)
+}
+
 /** Longest run of the same amount in consecutive calendar months (2 or more), e.g. rent or a regular client. */
 export function regularMonthlyAmount(payments: { date: Date | null; amount: number }[]): RentalIncomeCandidate['regular'] {
   const monthsByAmount = new Map<number, Set<number>>()

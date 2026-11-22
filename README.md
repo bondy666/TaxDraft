@@ -165,6 +165,11 @@ band (£56,867), the tax on non-savings income (£11,373.40 + £30,388.80) — m
   payment-type prefixes; property and payer details after "REF" are kept, so different tenants
   stay separate. Payers paying the same amount in consecutive months are highlighted and
   listed first; one-off payments are collapsed but can still be reconciled if they are rent.
+  After a payer is matched, other payers with a similar name (the same first two meaningful
+  words, such as "Gateway Mayfair…" or "Flat 4…", ignoring words like "rent", "FP" and
+  months) are offered for the same property, all ticked; untick any that aren't rent before
+  matching. Payers whose name is like one already matched show that property pre-selected,
+  but still need confirming.
   Receipts matched to the wrong property can be removed in Income (individually or all at once);
   amounts they added are reversed and the receipts can be matched again.
   Dated signed-amount CSV exports and readable PDF statement transactions are also supported.

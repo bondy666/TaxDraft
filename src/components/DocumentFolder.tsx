@@ -11,7 +11,9 @@ import {
 import {
   findCharityCandidates,
   findRentalIncomeCandidates,
+  findSimilarRentalCandidates,
   matchesBankRecipient,
+  similarNameKey,
   type CharityCandidate,
   type RentalIncomeCandidate,
   type SourcedBankTransaction,
@@ -107,6 +109,11 @@ export function DocumentFolder({
   const [rentalResolutions, setRentalResolutions] = useState<Record<string, RentalIncomeResolution | ''>>({})
   const [rentalErrors, setRentalErrors] = useState<Record<string, string>>({})
   const [rentalStatus, setRentalStatus] = useState('')
+  /** After a match, other payers with a similar name, offered for the same property. All start ticked. */
+  const [similarPrompt, setSimilarPrompt] = useState<{
+    targetId: string; targetName: string; resolution: RentalIncomeResolution; nameKey: string
+    ids: string[]; unticked: Record<string, boolean>
+  } | null>(null)
   const [charitySelections, setCharitySelections] = useState<Record<string, boolean>>({})
   const [charityEvaluationStatus, setCharityEvaluationStatus] = useState('')
   const charityCandidates = useMemo(() => findCharityCandidates(bankTransactions, pensionRecipients, donationRecipients),
@@ -135,12 +142,22 @@ export function DocumentFolder({
     item.name.startsWith('Unallocated') && item.rentalIncome > 0 &&
     item.documentSources?.some((source) =>
       candidate.sourceKeys.some((sourceKey) => source.startsWith(`${sourceKey}:`))))
-  /** Your choice, otherwise the property named in the receipts (e.g. "REF.4 PEARL CHAMBERS"). */
+  /** Properties that already have rent from a payer with this similar name (e.g. "gateway mayfair"). */
+  const matchedNameOwners = new Map<string, PropertyLet>()
+  for (const item of properties) {
+    if (item.name.startsWith('Unallocated')) continue
+    for (const evidence of item.rentalIncomeEvidence ?? []) {
+      const key = similarNameKey(evidence.description)
+      if (key && !matchedNameOwners.has(key)) matchedNameOwners.set(key, item)
+    }
+  }
+  /** Your choice, otherwise the property named in the receipts (e.g. "REF.4 PEARL CHAMBERS"), otherwise the property a similar name was matched to. */
   const rentalTargetFor = (candidate: RentalIncomeCandidate) => {
     if (candidate.id in rentalTargets) return rentalTargets[candidate.id]
     const named = findPropertyMentions(candidate.description).map((mention) => mention.name)
     return properties.find((item) => !item.name.startsWith('Unallocated') &&
-      named.some((name) => sameProperty(name, item.name)))?.id ?? ''
+      named.some((name) => sameProperty(name, item.name)))?.id ??
+      matchedNameOwners.get(similarNameKey(candidate.description))?.id ?? ''
   }
 
   function reconcileRentalIncome(candidate: RentalIncomeCandidate) {
@@ -174,12 +191,40 @@ export function DocumentFolder({
         return next
       })
       setRentalStatus(`${candidate.description} from ${candidate.source} reconciled with ${target.name}. Check the property’s rental-income evidence in Income.`)
+      const similar = findSimilarRentalCandidates(candidate, rentalIncomeCandidates)
+        .filter((other) => !legacyRentalAggregates(other).length)
+      setSimilarPrompt(similar.length ? {
+        targetId: target.id, targetName: target.name || 'this property', resolution,
+        nameKey: similarNameKey(candidate.description), ids: similar.map((other) => other.id), unticked: {},
+      } : null)
     } catch (cause) {
       setRentalErrors((current) => ({
         ...current,
         [candidate.id]: cause instanceof Error ? cause.message : String(cause),
       }))
     }
+  }
+
+  function matchSimilarPayers() {
+    if (!similarPrompt) return
+    const chosen = rentalIncomeCandidates.filter((candidate) =>
+      similarPrompt.ids.includes(candidate.id) && !similarPrompt.unticked[candidate.id])
+    // Check them all against the property first, so one problem doesn't leave the batch half-applied.
+    let preview = properties
+    const matched: typeof chosen = []
+    const problems: string[] = []
+    for (const candidate of chosen) {
+      try {
+        preview = previewRentalReconciliation(preview, similarPrompt.targetId, candidate, similarPrompt.resolution, false)
+        matched.push(candidate)
+      } catch (cause) {
+        problems.push(`${candidate.description}: ${cause instanceof Error ? cause.message : String(cause)}`)
+      }
+    }
+    for (const candidate of matched) onReconcileRentalIncome(similarPrompt.targetId, candidate, similarPrompt.resolution, false)
+    setRentalStatus(`${matched.length} more payer${matched.length === 1 ? '' : 's'} matched to ${similarPrompt.targetName}.` +
+      (problems.length ? ` Not matched — check individually: ${problems.join(' ')}` : ''))
+    setSimilarPrompt(null)
   }
 
   useEffect(() => {
@@ -202,6 +247,7 @@ export function DocumentFolder({
     setRentalResolutions({})
     setRentalErrors({})
     setRentalStatus('')
+    setSimilarPrompt(null)
   }, [files, taxYearId])
 
   useEffect(() => {
@@ -370,6 +416,13 @@ export function DocumentFolder({
             <span className="evidence-badges">
               <span className="evidence-badge evidence-badge-recognised">
                 Same amount, consecutive months: £{candidate.regular.amount.toFixed(2)} × {candidate.regular.months}
+              </span>
+            </span>
+          )}
+          {matchedNameOwners.get(similarNameKey(candidate.description)) && (
+            <span className="evidence-badges">
+              <span className="evidence-badge evidence-badge-probable">
+                Similar name already matched to {matchedNameOwners.get(similarNameKey(candidate.description))!.name}
               </span>
             </span>
           )}
@@ -544,6 +597,44 @@ export function DocumentFolder({
           Money paid into your account that might be rent, grouped by who paid it. Regular payers come first.
           Match a payer to a property only if it really is rent.
         </p>
+        {similarPrompt && (() => {
+          const similar = rentalIncomeCandidates.filter((candidate) => similarPrompt.ids.includes(candidate.id))
+          if (!similar.length) return null
+          const ticked = similar.filter((candidate) => !similarPrompt.unticked[candidate.id]).length
+          return (
+            <div className="similar-prompt" role="region" aria-label="Similar payers">
+              <h4>Match all “{similarPrompt.nameKey.toUpperCase()}…” payments to {similarPrompt.targetName} too?</h4>
+              <p className="hint">
+                {similar.length} more payer{similar.length === 1 ? ' has' : 's have'} a similar name. Untick any that
+                aren’t rent for {similarPrompt.targetName}.
+              </p>
+              <ul className="similar-list">{similar.map((candidate) => (
+                <li key={candidate.id}>
+                  <label className="field checkbox">
+                    <input type="checkbox" checked={!similarPrompt.unticked[candidate.id]}
+                      onChange={(event) => setSimilarPrompt({
+                        ...similarPrompt, unticked: { ...similarPrompt.unticked, [candidate.id]: !event.target.checked },
+                      })} />
+                    <span><strong>{candidate.description}</strong> — {candidate.payments.length} receipt
+                      {candidate.payments.length === 1 ? '' : 's'}, £{candidate.total.toFixed(2)}</span>
+                  </label>
+                  <details>
+                    <summary>Show receipts</summary>
+                    <ul>{candidate.payments.map((payment) => (
+                      <li key={payment.id}>{payment.date?.toLocaleDateString('en-GB')} — {payment.description} — £{payment.amount.toFixed(2)}</li>
+                    ))}</ul>
+                  </details>
+                </li>
+              ))}</ul>
+              <div className="document-actions">
+                <button type="button" className="add-btn" disabled={!ticked} onClick={matchSimilarPayers}>
+                  Match {ticked} to {similarPrompt.targetName}
+                </button>
+                <button type="button" className="ghost-btn" onClick={() => setSimilarPrompt(null)}>No thanks</button>
+              </div>
+            </div>
+          )
+        })()}
         {!recurringRentalIncomeCandidates.length && !!oneOffRentalIncomeCandidates.length && (
           <p className="charity-empty">No payer paid more than once in {taxYearId}.</p>
         )}

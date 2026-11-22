@@ -5,7 +5,7 @@ import {
   removeRentalIncomeEvidence, allocateToNewProperty, suggestPropertyName, refreshWordDocumentRows,
   possibleDuplicateExpenses, removePropertyExpenses,
 } from './propertyImport.ts'
-import { findRentalIncomeCandidates } from './bankTransactions.ts'
+import { findRentalIncomeCandidates, findSimilarRentalCandidates, similarNameKey } from './bankTransactions.ts'
 
 const suggestion = {
   kind: 'property', selected: true, propertyName: 'Flat A', fileName: 'costs.xlsx',
@@ -143,6 +143,23 @@ test('property and payer details after REF keep different tenants in separate gr
   assert.equal(candidates.length, 3)
   assert.ok(candidates.every((candidate) => candidate.payments.length === 2))
   assert.deepEqual(candidates.find((candidate) => candidate.id.includes('drayton')).regular, { amount: 2100, months: 2 })
+})
+
+test('payers with a similar name are offered together, ignoring payment words, references and months', () => {
+  assert.equal(similarNameKey('GATEWAY MAYFAIR LTD REF 123456 FLAT 4'), 'gateway mayfair')
+  assert.equal(similarNameKey('FP GATEWAY MAYFAIR RENT JUNE'), 'gateway mayfair')
+  assert.equal(similarNameKey('RENT FLAT 4 PEARL'), 'flat 4')
+  assert.equal(similarNameKey('FLAT4 RENT'), 'flat 4')
+  assert.equal(similarNameKey('FASTER PAYMENTS RECEIPT REF.FLAT21 71E DRAYTON FROM NG L K'), 'flat 21')
+  assert.equal(similarNameKey('RENT'), '')
+  const receipt = (id, description) => ({ id, sourceKey: 'bank', source: 'Bank.csv', date: new Date(2025, 4, 1), description, amount: 500 })
+  const candidates = findRentalIncomeCandidates([
+    receipt('g1', 'GATEWAY MAYFAIR LTD REF 123456'), receipt('g2', 'FP GATEWAY MAYFAIR RENT JUNE'),
+    receipt('g3', 'GATEWAY MAYFAIR PROPERTY MGMT'), receipt('s1', 'J SMITH'),
+  ])
+  const gateway = candidates.find((candidate) => candidate.payments[0].id === 'g1')
+  assert.deepEqual(findSimilarRentalCandidates(gateway, candidates).map((candidate) => candidate.payments[0].id).sort(), ['g2', 'g3'])
+  assert.deepEqual(findSimilarRentalCandidates(candidates.find((candidate) => candidate.id === 'j smith'), candidates), [])
 })
 
 test('removing matched receipts reverses only amounts they added', () => {
