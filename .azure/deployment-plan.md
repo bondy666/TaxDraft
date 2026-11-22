@@ -110,3 +110,5 @@ Bicep validation does not apply to this code-only update. No infrastructure was 
   Documents tab. Verified live bundle `index-Qw-wS63m.js`.
 - 2026-11-22: Redeployed with similar-payer matching for rent suggestions. Verified live bundle
   `index-XO4uaHso.js`.
+- 2026-11-22: Redeployed so similar payers are offered across formats and old-total files. Verified
+  live bundle `index-BeaWUn77.js`.
