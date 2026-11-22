@@ -4,7 +4,8 @@ import type {
 import type { ReactNode } from 'react'
 import { useId, useState } from 'react'
 import {
-  allocateProperty, allocateToNewProperty, moveBankReference, possibleDuplicateExpenses, reviewPropertyExpense, suggestPropertyName,
+  allocateProperty, allocateToNewProperty, applyExpenseDecisions, moveBankReference, possibleDuplicateExpenses, reviewPropertyExpense,
+  similarExpenseDecisions, suggestPropertyName,
 } from '../engine/propertyImport'
 import { confirmBankRelief } from '../engine/bankImport'
 import { evidencedPropertyExpenses, labelledInterest, mortgagePayments } from '../engine/propertyExpenses'
@@ -355,10 +356,11 @@ function PropertyAllocation({ item, items, onAllocate, onAllocateNew }: {
   )
 }
 
-function PropertyExpenseReview({ item, expense, duplicateOf, onChange, onDelete }: {
+function PropertyExpenseReview({ item, expense, duplicateOf, onChange, onDelete, onDecided }: {
   item: PropertyLet; expense: PropertyExpenseEvidence; duplicateOf?: PropertyExpenseEvidence
   onChange: (patch: Partial<PropertyLet>) => void
   onDelete: () => void
+  onDecided: (next: PropertyLet) => void
 }) {
   const [amount, setAmount] = useState(String(expense.allowableAmount || expense.amount))
   const [error, setError] = useState('')
@@ -368,6 +370,7 @@ function PropertyExpenseReview({ item, expense, duplicateOf, onChange, onDelete 
       const next = reviewPropertyExpense(item, expense.id, value)
       onChange({ allowableExpenses: next.allowableExpenses, expenseEvidence: next.expenseEvidence,
         expenseReconciliation: next.expenseReconciliation, documentVerified: false })
+      onDecided(next)
       setError('')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
@@ -466,6 +469,58 @@ export function PropertySection({ items, m, onAllocate, onAllocateNew, onMoveBan
 }) {
   const update = (id: string, patch: Partial<PropertyLet>) => m.update(id, { ...patch, documentVerified: false })
   const unallocatedCount = items.filter((item) => item.name.startsWith('Unallocated')).length
+  /** After a cost is decided, similar costs in the same property, offered for the same decision. All start ticked. */
+  const [expensePrompt, setExpensePrompt] = useState<{
+    propertyId: string; decidedId: string; label: string; decision: string; ids: string[]; unticked: Record<string, boolean>
+  } | null>(null)
+  function offerSimilarExpenses(next: PropertyLet, expense: PropertyExpenseEvidence) {
+    const similar = similarExpenseDecisions(next, expense.id)
+    const decided = next.expenseEvidence?.find((entry) => entry.id === expense.id)
+    const share = decided && decided.amount > 0 ? decided.allowableAmount / decided.amount : 0
+    setExpensePrompt(similar.length ? {
+      propertyId: next.id, decidedId: expense.id, label: expense.description,
+      decision: share === 0 ? 'exclude' : share === 1 ? 'include all of' : `include ${Math.round(share * 1000) / 10}% of`,
+      ids: similar.map(({ expense: row }) => row.id), unticked: {},
+    } : null)
+  }
+  function renderExpensePrompt(p: PropertyLet) {
+    if (expensePrompt?.propertyId !== p.id) return null
+    // Recomputed from the current rows, so anything decided individually in the meantime drops out.
+    const offered = similarExpenseDecisions(p, expensePrompt.decidedId)
+      .filter(({ expense }) => expensePrompt.ids.includes(expense.id))
+    if (!offered.length) return null
+    const chosen = offered.filter(({ expense }) => !expensePrompt.unticked[expense.id])
+    return (
+      <div className="similar-prompt" role="region" aria-label="Similar costs">
+        <h4>Treat similar costs the same way?</h4>
+        <p className="hint">
+          You chose to {expensePrompt.decision} “{expensePrompt.label}”. {offered.length} more
+          cost{offered.length === 1 ? ' looks' : 's look'} like it. Untick any that should be treated differently.
+        </p>
+        <ul className="similar-list">{offered.map(({ expense, allowableAmount }) => (
+          <li key={expense.id}>
+            <label className="field checkbox">
+              <input type="checkbox" checked={!expensePrompt.unticked[expense.id]}
+                onChange={(event) => setExpensePrompt({
+                  ...expensePrompt, unticked: { ...expensePrompt.unticked, [expense.id]: !event.target.checked },
+                })} />
+              <span><strong>{expense.description}</strong> — {expense.date || 'no date'}, £{money(expense.amount)}
+                {' '}(allowable £{money(expense.allowableAmount)} → £{money(allowableAmount)})</span>
+            </label>
+          </li>
+        ))}</ul>
+        <div className="document-actions">
+          <button type="button" className="add-btn" disabled={!chosen.length} onClick={() => {
+            const next = applyExpenseDecisions(p, chosen.map(({ expense, allowableAmount }) => ({ id: expense.id, allowableAmount })))
+            update(p.id, { allowableExpenses: next.allowableExpenses, expenseEvidence: next.expenseEvidence,
+              expenseReconciliation: next.expenseReconciliation })
+            setExpensePrompt(null)
+          }}>Apply to {chosen.length}</button>
+          <button type="button" className="ghost-btn" onClick={() => setExpensePrompt(null)}>No thanks</button>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="card">
       <h2>Land and property</h2>
@@ -623,6 +678,7 @@ export function PropertySection({ items, m, onAllocate, onAllocateNew, onMoveBan
                   ? ' These expenses are not included in the tax calculation until assigned to a named property.'
                   : ' The expense total above is calculated only from included document rows. Unexplained balances are excluded from the tax calculation.'}
               </p>
+              {renderExpensePrompt(p)}
               <div className="expense-table-scroll">
               <table className="expense-table">
                 <caption>Expense review for {p.name || 'Unnamed property'} — amounts before ownership apportionment</caption>
@@ -638,6 +694,7 @@ export function PropertySection({ items, m, onAllocate, onAllocateNew, onMoveBan
                   <PropertyExpenseReview key={`${expense.id}:${expense.allowableAmount}`}
                     item={p} expense={expense} duplicateOf={duplicates.get(expense.id)}
                     onChange={(patch) => m.update(p.id, patch)}
+                    onDecided={(next) => offerSimilarExpenses(next, expense)}
                     onDelete={() => onRemoveExpenses(p.id, [expense.id],
                       `Deleted expense “${expense.description}” (£${money(expense.amount)}) from ${p.name || 'property'}`)} />
                 ))

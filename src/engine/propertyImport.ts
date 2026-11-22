@@ -1,7 +1,7 @@
 import type { PropertyExpenseEvidence, PropertyLet, PropertyRentalIncomeEvidence } from '../types'
 import type { DocumentSuggestion } from './documentImport'
 import type { RentalIncomeCandidate } from './bankTransactions'
-import { findSimilarRentalCandidates } from './bankTransactions.ts'
+import { findSimilarRentalCandidates, similarDescriptions } from './bankTransactions.ts'
 import { consolidateProperties } from './propertyConsolidation.ts'
 import { reconcilePropertyExpenses, evidencedPropertyExpenses } from './propertyExpenses.ts'
 
@@ -306,6 +306,26 @@ export function reviewPropertyExpense(item: PropertyLet, expenseId: string, allo
     ...reconciled, allowableExpenses: evidencedPropertyExpenses({ ...reconciled, expenseEvidence }), documentVerified: false,
     expenseEvidence,
   }
+}
+
+/**
+ * After a decision on one cost, the other running costs in the same property that look like the same supplier or
+ * property, with the amount the same decision would give them (the same share of each cost). Rows already at that
+ * amount, and interest or repayments, are left out.
+ */
+export function similarExpenseDecisions(item: PropertyLet, expenseId: string): { expense: PropertyExpenseEvidence; allowableAmount: number }[] {
+  const decided = item.expenseEvidence?.find((entry) => entry.id === expenseId)
+  if (!decided || decided.amount <= 0) return []
+  const share = decided.allowableAmount / decided.amount
+  return (item.expenseEvidence ?? [])
+    .filter((entry) => entry.id !== expenseId && entry.treatment !== 'interest' && entry.treatment !== 'repayment' &&
+      similarDescriptions(decided.description, entry.description))
+    .map((expense) => ({ expense, allowableAmount: Math.round(expense.amount * share * 100) / 100 }))
+    .filter(({ expense, allowableAmount }) => allowableAmount !== expense.allowableAmount)
+}
+
+export function applyExpenseDecisions(item: PropertyLet, decisions: { id: string; allowableAmount: number }[]): PropertyLet {
+  return decisions.reduce((current, decision) => reviewPropertyExpense(current, decision.id, decision.allowableAmount), item)
 }
 
 export function moveBankReference(items: PropertyLet[], sourceId: string, targetId: string, index: number): PropertyLet[] {

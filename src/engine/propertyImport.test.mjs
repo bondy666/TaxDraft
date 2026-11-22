@@ -4,6 +4,7 @@ import {
   importProperty, allocateProperty, moveBankReference, reviewPropertyExpense, reconcileRentalIncomeCandidate,
   removeRentalIncomeEvidence, allocateToNewProperty, suggestPropertyName, refreshWordDocumentRows,
   possibleDuplicateExpenses, removePropertyExpenses, legacyRentalAggregates, similarCandidatesAfterMatch,
+  similarExpenseDecisions, applyExpenseDecisions,
 } from './propertyImport.ts'
 import { findRentalIncomeCandidates, findSimilarRentalCandidates, similarDescriptions, similarNameKey } from './bankTransactions.ts'
 
@@ -186,6 +187,27 @@ test('after a match replaces an old total, other payers from the same file are s
   const offered = similarCandidatesAfterMatch(ground, candidates, after, target.name).map((candidate) => candidate.payments[0].id).sort()
   // The parking bay payer shares the name; the Elm Court claim names the property it is being matched to.
   assert.deepEqual(offered, ['e1', 'h2'])
+})
+
+test('a decision on one cost is offered for similar costs as the same share of each amount', () => {
+  const row = (id, description, amount, allowableAmount = 0, treatment = 'review') =>
+    ({ id, source: 'Costs.docx', row: 1, date: '01/05/2025', description, amount, allowableAmount, treatment, reason: '' })
+  const item = {
+    id: 'elm', name: 'Elm Court', ownershipShare: 1, rentalIncome: 0, allowableExpenses: 0, mortgageInterest: 0,
+    expenseEvidence: [
+      row('g1', 'Harbour Lettings Ltd – Ground Rent', 200), row('g2', 'Harbour Lettings Ltd – Parking Bay Rent', 80),
+      row('g3', 'Harbour Lettings Ltd – Ground Rent', 200, 100), row('c1', 'Council tax', 1500),
+      row('i1', 'Harbour Lettings Ltd – Ground Rent', 50, 0, 'interest'),
+    ],
+  }
+  const halved = reviewPropertyExpense(item, 'g1', 100)
+  assert.deepEqual(similarExpenseDecisions(halved, 'g1').map(({ expense, allowableAmount }) => [expense.id, allowableAmount]),
+    [['g2', 40]])
+  const full = reviewPropertyExpense(item, 'g1', 200)
+  const offered = similarExpenseDecisions(full, 'g1')
+  assert.deepEqual(offered.map(({ expense }) => expense.id), ['g2', 'g3'])
+  const applied = applyExpenseDecisions(full, offered.map(({ expense, allowableAmount }) => ({ id: expense.id, allowableAmount })))
+  assert.equal(applied.allowableExpenses, 480)
 })
 
 test('removing matched receipts reverses only amounts they added', () => {

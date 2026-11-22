@@ -174,6 +174,10 @@ band (£56,867), the tax on non-savings income (£11,373.40 + £30,388.80) — m
   Payers like one already matched show that property pre-selected, but still need confirming.
   Receipts matched to the wrong property can be removed in Income (individually or all at once);
   amounts they added are reversed and the receipts can be matched again.
+  The same applies to a property's expense breakdown: after you apply an allowable amount to a
+  cost or exclude it, other costs in that property that look like the same supplier or property
+  are offered the same decision (the same share of each cost, e.g. 50%), all ticked; untick any
+  that should be treated differently. Interest and repayment rows are never included.
   Dated signed-amount CSV exports and readable PDF statement transactions are also supported.
   Unknown invoices, capital/private costs and mortgage repayments require manual checking.
   Every valid dated cost explicitly listed in a rental-property expense worksheet is retained
