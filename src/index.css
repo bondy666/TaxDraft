@@ -1,0 +1,62 @@
+:root {
+  /* Palette — a working paper, not a fintech dashboard */
+  --paper: #E9EDE7;
+  --paper-raised: #FCFCF8;
+  --ink: #183240;
+  --ink-soft: #435960;
+  --rule: #C3CEC7;
+  --rule-strong: #8FA39A;
+  --redpen: #9A3B31;      /* margin annotations / things to check */
+  --redpen-soft: #F4E4DF;
+  --stamp: #176B5E;       /* confirmed / on track */
+  --stamp-soft: #DCECE5;
+  --gold: #C38B25;        /* formal highlight and primary action */
+
+  --font-display: 'Source Serif 4', serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+.figure, input[type="number"], .ledger-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+a { color: var(--stamp); }
+
+::selection { background: var(--gold); color: var(--ink); }
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
