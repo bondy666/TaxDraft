@@ -11,9 +11,8 @@ import {
 import {
   findCharityCandidates,
   findRentalIncomeCandidates,
-  findSimilarRentalCandidates,
   matchesBankRecipient,
-  similarNameKey,
+  similarDescriptions,
   type CharityCandidate,
   type RentalIncomeCandidate,
   type SourcedBankTransaction,
@@ -23,7 +22,9 @@ import { EVIDENCE_TIERS, evidenceTier } from '../engine/evidenceConfidence'
 import { findPropertyMentions, resolvePropertyNames, sameProperty, type PropertyMention } from '../engine/propertyDiscovery'
 import { setSourceFiles } from '../state/sourceFiles'
 import {
+  legacyRentalAggregates as legacyAggregatesIn,
   reconcileRentalIncomeCandidate as previewRentalReconciliation,
+  similarCandidatesAfterMatch,
   type RentalIncomeResolution,
 } from '../engine/propertyImport'
 
@@ -111,7 +112,7 @@ export function DocumentFolder({
   const [rentalStatus, setRentalStatus] = useState('')
   /** After a match, other payers with a similar name, offered for the same property. All start ticked. */
   const [similarPrompt, setSimilarPrompt] = useState<{
-    targetId: string; targetName: string; resolution: RentalIncomeResolution; nameKey: string
+    targetId: string; targetName: string; resolution: RentalIncomeResolution; matchedLabel: string
     ids: string[]; unticked: Record<string, boolean>
   } | null>(null)
   const [charitySelections, setCharitySelections] = useState<Record<string, boolean>>({})
@@ -138,26 +139,18 @@ export function DocumentFolder({
   const oneOffRentalIncomeCandidates = rentalIncomeCandidates.filter((candidate) => !candidate.recurring)
   const isCharityCandidateSelected = (candidate: CharityCandidate) =>
     charitySelections[candidate.id] ?? (candidate.confidence !== 'monthlyReview')
-  const legacyRentalAggregates = (candidate: RentalIncomeCandidate) => properties.filter((item) =>
-    item.name.startsWith('Unallocated') && item.rentalIncome > 0 &&
-    item.documentSources?.some((source) =>
-      candidate.sourceKeys.some((sourceKey) => source.startsWith(`${sourceKey}:`))))
-  /** Properties that already have rent from a payer with this similar name (e.g. "gateway mayfair"). */
-  const matchedNameOwners = new Map<string, PropertyLet>()
-  for (const item of properties) {
-    if (item.name.startsWith('Unallocated')) continue
-    for (const evidence of item.rentalIncomeEvidence ?? []) {
-      const key = similarNameKey(evidence.description)
-      if (key && !matchedNameOwners.has(key)) matchedNameOwners.set(key, item)
-    }
-  }
-  /** Your choice, otherwise the property named in the receipts (e.g. "REF.4 PEARL CHAMBERS"), otherwise the property a similar name was matched to. */
+  const legacyRentalAggregates = (candidate: RentalIncomeCandidate) => legacyAggregatesIn(properties, candidate)
+  /** The property that already has rent from a payment like this one (same payer or same property named). */
+  const similarMatchedProperty = (candidate: RentalIncomeCandidate) => properties.find((item) =>
+    !item.name.startsWith('Unallocated') &&
+    item.rentalIncomeEvidence?.some((evidence) => similarDescriptions(evidence.description, candidate.description)))
+  /** Your choice, otherwise the property named in the receipts (e.g. "REF.4 PEARL CHAMBERS"), otherwise the property a similar payment was matched to. */
   const rentalTargetFor = (candidate: RentalIncomeCandidate) => {
     if (candidate.id in rentalTargets) return rentalTargets[candidate.id]
     const named = findPropertyMentions(candidate.description).map((mention) => mention.name)
     return properties.find((item) => !item.name.startsWith('Unallocated') &&
       named.some((name) => sameProperty(name, item.name)))?.id ??
-      matchedNameOwners.get(similarNameKey(candidate.description))?.id ?? ''
+      similarMatchedProperty(candidate)?.id ?? ''
   }
 
   function reconcileRentalIncome(candidate: RentalIncomeCandidate) {
@@ -183,7 +176,7 @@ export function DocumentFolder({
     }
     const selectedCandidate = { ...candidate, payments: candidate.payments }
     try {
-      previewRentalReconciliation(properties, target.id, selectedCandidate, resolution, legacy.length > 0)
+      const afterMatch = previewRentalReconciliation(properties, target.id, selectedCandidate, resolution, legacy.length > 0)
       onReconcileRentalIncome(target.id, selectedCandidate, resolution, legacy.length > 0)
       setRentalErrors((current) => {
         const next = { ...current }
@@ -191,11 +184,10 @@ export function DocumentFolder({
         return next
       })
       setRentalStatus(`${candidate.description} from ${candidate.source} reconciled with ${target.name}. Check the property’s rental-income evidence in Income.`)
-      const similar = findSimilarRentalCandidates(candidate, rentalIncomeCandidates)
-        .filter((other) => !legacyRentalAggregates(other).length)
+      const similar = similarCandidatesAfterMatch(candidate, rentalIncomeCandidates, afterMatch, target.name)
       setSimilarPrompt(similar.length ? {
         targetId: target.id, targetName: target.name || 'this property', resolution,
-        nameKey: similarNameKey(candidate.description), ids: similar.map((other) => other.id), unticked: {},
+        matchedLabel: candidate.description, ids: similar.map((other) => other.id), unticked: {},
       } : null)
     } catch (cause) {
       setRentalErrors((current) => ({
@@ -419,10 +411,10 @@ export function DocumentFolder({
               </span>
             </span>
           )}
-          {matchedNameOwners.get(similarNameKey(candidate.description)) && (
+          {similarMatchedProperty(candidate) && (
             <span className="evidence-badges">
               <span className="evidence-badge evidence-badge-probable">
-                Similar name already matched to {matchedNameOwners.get(similarNameKey(candidate.description))!.name}
+                Similar to a payment already matched to {similarMatchedProperty(candidate)!.name}
               </span>
             </span>
           )}
@@ -603,10 +595,10 @@ export function DocumentFolder({
           const ticked = similar.filter((candidate) => !similarPrompt.unticked[candidate.id]).length
           return (
             <div className="similar-prompt" role="region" aria-label="Similar payers">
-              <h4>Match all “{similarPrompt.nameKey.toUpperCase()}…” payments to {similarPrompt.targetName} too?</h4>
+              <h4>Match similar payments to {similarPrompt.targetName} too?</h4>
               <p className="hint">
-                {similar.length} more payer{similar.length === 1 ? ' has' : 's have'} a similar name. Untick any that
-                aren’t rent for {similarPrompt.targetName}.
+                {similar.length} more payer{similar.length === 1 ? ' looks' : 's look'} like “{similarPrompt.matchedLabel}”
+                or mention{similar.length === 1 ? 's' : ''} {similarPrompt.targetName}. Untick any that aren’t rent for {similarPrompt.targetName}.
               </p>
               <ul className="similar-list">{similar.map((candidate) => (
                 <li key={candidate.id}>

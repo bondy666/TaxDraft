@@ -1,10 +1,29 @@
 import type { PropertyExpenseEvidence, PropertyLet, PropertyRentalIncomeEvidence } from '../types'
 import type { DocumentSuggestion } from './documentImport'
 import type { RentalIncomeCandidate } from './bankTransactions'
+import { findSimilarRentalCandidates } from './bankTransactions.ts'
 import { consolidateProperties } from './propertyConsolidation.ts'
 import { reconcilePropertyExpenses, evidencedPropertyExpenses } from './propertyExpenses.ts'
 
 export type RentalIncomeResolution = 'additional' | 'alreadyIncluded'
+
+/** Old unallocated rent totals read from the same source file as these receipts, which matching them would replace. */
+export function legacyRentalAggregates(items: PropertyLet[], candidate: Pick<RentalIncomeCandidate, 'sourceKeys'>): PropertyLet[] {
+  return items.filter((item) => item.name.startsWith('Unallocated') &&
+    item.rentalIncome > 0 && item.documentSources?.some((source) =>
+      candidate.sourceKeys.some((sourceKey) => source.startsWith(`${sourceKey}:`))))
+}
+
+/**
+ * After a payer is matched, the other payers to offer for the same property. Old totals are checked against the
+ * return *after* that match, because the first match usually replaces the old total for the whole source file.
+ */
+export function similarCandidatesAfterMatch<T extends RentalIncomeCandidate>(
+  matched: RentalIncomeCandidate, candidates: T[], itemsAfterMatch: PropertyLet[], propertyName: string,
+): T[] {
+  return findSimilarRentalCandidates(matched, candidates, propertyName)
+    .filter((candidate) => !legacyRentalAggregates(itemsAfterMatch, candidate).length)
+}
 
 export function reconcileRentalIncomeCandidate(
   items: PropertyLet[],
@@ -31,9 +50,7 @@ export function reconcileRentalIncomeCandidate(
     if (duplicate) throw new Error('A matching rent receipt is already attached from another bank export. Reconcile the duplicate manually.')
   }
 
-  const legacy = items.filter((item) => item.name.startsWith('Unallocated') &&
-    item.rentalIncome > 0 && item.documentSources?.some((source) =>
-      candidate.sourceKeys.some((sourceKey) => source.startsWith(`${sourceKey}:`))))
+  const legacy = legacyRentalAggregates(items, candidate)
   if (legacy.length && !replaceLegacyAggregate) {
     throw new Error('Confirm that the old unallocated total should be replaced by individual receipt sources.')
   }

@@ -1,3 +1,5 @@
+import { findPropertyMentions, sameProperty } from './propertyDiscovery.ts'
+
 export interface BankTransaction {
   date: Date | null
   description: string
@@ -82,10 +84,24 @@ export function similarNameKey(description: string): string {
   return words.length >= 2 || key.length >= 4 ? key : ''
 }
 
-export function findSimilarRentalCandidates<T extends RentalIncomeCandidate>(candidate: RentalIncomeCandidate, candidates: T[]): T[] {
-  const key = similarNameKey(candidate.description)
-  if (!key) return []
-  return candidates.filter((other) => other.id !== candidate.id && similarNameKey(other.description) === key)
+/**
+ * True when two payment descriptions look like the same payer or the same property. When both name a property, the
+ * property decides ("Flat 4, Pearl Chambers…" and "REF.4 PEARL CHAMBERS…"); otherwise the payer's name does.
+ */
+export function similarDescriptions(a: string, b: string): boolean {
+  const left = findPropertyMentions(a).map((mention) => mention.name)
+  const right = findPropertyMentions(b).map((mention) => mention.name)
+  if (left.length && right.length) return left.some((name) => right.some((other) => sameProperty(name, other)))
+  const key = similarNameKey(a)
+  return !!key && key === similarNameKey(b)
+}
+
+/** Other payers that look like the same payer or property, plus any that name the property they're being matched to. */
+export function findSimilarRentalCandidates<T extends RentalIncomeCandidate>(candidate: RentalIncomeCandidate, candidates: T[], propertyName = ''): T[] {
+  const namesProperty = (description: string) => !!propertyName &&
+    findPropertyMentions(description).some((mention) => sameProperty(mention.name, propertyName))
+  return candidates.filter((other) => other.id !== candidate.id &&
+    (similarDescriptions(candidate.description, other.description) || namesProperty(other.description)))
 }
 
 /** Longest run of the same amount in consecutive calendar months (2 or more), e.g. rent or a regular client. */

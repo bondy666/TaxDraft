@@ -3,9 +3,9 @@ import assert from 'node:assert/strict'
 import {
   importProperty, allocateProperty, moveBankReference, reviewPropertyExpense, reconcileRentalIncomeCandidate,
   removeRentalIncomeEvidence, allocateToNewProperty, suggestPropertyName, refreshWordDocumentRows,
-  possibleDuplicateExpenses, removePropertyExpenses,
+  possibleDuplicateExpenses, removePropertyExpenses, legacyRentalAggregates, similarCandidatesAfterMatch,
 } from './propertyImport.ts'
-import { findRentalIncomeCandidates, findSimilarRentalCandidates, similarNameKey } from './bankTransactions.ts'
+import { findRentalIncomeCandidates, findSimilarRentalCandidates, similarDescriptions, similarNameKey } from './bankTransactions.ts'
 
 const suggestion = {
   kind: 'property', selected: true, propertyName: 'Flat A', fileName: 'costs.xlsx',
@@ -160,6 +160,32 @@ test('payers with a similar name are offered together, ignoring payment words, r
   const gateway = candidates.find((candidate) => candidate.payments[0].id === 'g1')
   assert.deepEqual(findSimilarRentalCandidates(gateway, candidates).map((candidate) => candidate.payments[0].id).sort(), ['g2', 'g3'])
   assert.deepEqual(findSimilarRentalCandidates(candidates.find((candidate) => candidate.id === 'j smith'), candidates), [])
+})
+
+test('payments naming the same property are offered together, whatever the format; the payer name decides otherwise', () => {
+  assert.ok(similarDescriptions('Flat 2, Elm Court, York - Insurance claim', 'Flat 2, Elm Court, York - Service charge refund'))
+  assert.ok(similarDescriptions('Flat 2, Elm Court, York - Insurance claim', 'FASTER PAYMENTS RECEIPT REF.2 ELM COURT FROM ACME AGENTS'))
+  assert.ok(similarDescriptions('Harbour Lettings Ltd – Ground Rent', 'Harbour Lettings Ltd – Parking Bay Rent'))
+  assert.ok(!similarDescriptions('Flat 2, Elm Court, York - Claim', 'Flat 2, Oak House, York - Claim'))
+  assert.ok(!similarDescriptions('Harbour Lettings Ltd – Ground Rent', 'J SMITH'))
+})
+
+test('after a match replaces an old total, other payers from the same file are still offered', () => {
+  const receipt = (id, description) => ({ id, sourceKey: 'ledger:Sheet1', source: 'Ledger.xlsx', date: new Date(2025, 4, 1), description, amount: 400 })
+  const candidates = findRentalIncomeCandidates([
+    receipt('h1', 'Harbour Lettings Ltd – Ground Rent'), receipt('h2', 'Harbour Lettings Ltd – Parking Bay Rent'),
+    receipt('e1', 'Flat 2, Elm Court, York - Insurance claim'), receipt('s1', 'J SMITH'),
+  ])
+  const target = { id: 'elm', name: 'Elm Court', rentalIncome: 0, ownershipShare: 1, allowableExpenses: 0, mortgageInterest: 0 }
+  const legacy = { id: 'old', name: 'Unallocated rental income', rentalIncome: 1600, allowableExpenses: 0, mortgageInterest: 0,
+    documentSources: ['ledger:Sheet1:Elm Court:2025-26'] }
+  const ground = candidates.find((candidate) => candidate.payments[0].id === 'h1')
+  const before = [target, legacy]
+  assert.equal(legacyRentalAggregates(before, ground).length, 1)
+  const after = reconcileRentalIncomeCandidate(before, target.id, ground, 'additional', true)
+  const offered = similarCandidatesAfterMatch(ground, candidates, after, target.name).map((candidate) => candidate.payments[0].id).sort()
+  // The parking bay payer shares the name; the Elm Court claim names the property it is being matched to.
+  assert.deepEqual(offered, ['e1', 'h2'])
 })
 
 test('removing matched receipts reverses only amounts they added', () => {
