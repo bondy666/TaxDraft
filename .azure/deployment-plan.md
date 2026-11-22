@@ -116,3 +116,5 @@ Bicep validation does not apply to this code-only update. No infrastructure was 
   `index-CzJH339E.js`.
 - 2026-11-22: Redeployed with zero-amount rows left out of the exported spreadsheet. Verified live
   bundle `index-DgnaLkrA.js`.
+- 2026-11-22: Redeployed with unexpected zero amounts highlighted. Verified live bundle
+  `index-jTuYp3yf.js`.
